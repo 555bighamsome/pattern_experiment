@@ -164,29 +164,31 @@ body {
 .operation-chip { font-size: 0.75rem; padding: 0.25rem 0.5rem; }
 .primitive-btn, .transform-btn, .btn { padding: 0.5rem; font-size: 0.82rem; }
 
-.target-section {
-    text-align: center;
-    margin-bottom: 2rem;
-}
-
-.target-section h2 {
-    font-size: 1.5rem;
-    color: #1f2937;
-    margin-bottom: 1rem;
-}
-
-.workspace-section {
-    margin-top: 2rem;
-    position: relative; /* allow workspace preview overlay to position itself within this section */
-}
-
-.workspace-section h3 {
+/* 统一的标题样式 - Target Pattern 和 Workspace */
+.section-title {
     font-size: 1.2rem;
     color: #1f2937;
     margin-bottom: 1rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.target-section {
+    text-align: center;
+    margin-bottom: 0;
+}
+
+.workspace-section {
+    margin-top: 0;
+    position: relative; /* allow workspace preview overlay to position itself within this section */
 }
 
 .workspace-canvas {
+    display: flex;
+    justify-content: center;
+}
+
+#targetPattern {
     display: flex;
     justify-content: center;
 }
@@ -345,21 +347,7 @@ body {
     border-radius: 0.5rem;
 }
 
-/* Workspace title styling */
-.workspace-title {
-    text-transform: capitalize;
-    font-size: 1.1rem;
-    color: #1f2937;
-    margin-bottom: 0.6rem;
-    display: inline-block;
-}
-
-/* move workspace title to the right and keep it visually centered above the canvas */
-.workspace-section .workspace-title {
-    display: block;
-    text-align: center; /* center within workspace column */
-    margin-right: 0; /* allow rightward visual balance */
-}
+/* 已使用统一的 .section-title 样式，不再需要单独的 workspace-title */
 
 /* Each workflow step is a row with a line-number badge */
 .operations-log .operation-thumb {
