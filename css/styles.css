@@ -1,0 +1,975 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #f5f5f5;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.welcome-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.welcome-content {
+    max-width: 800px;
+    padding: 3rem;
+}
+
+.welcome-content h1 {
+    font-size: 2.5rem;
+    color: #1f2937;
+    margin-bottom: 2rem;
+}
+
+.welcome-content h2 {
+    font-size: 1.5rem;
+    color: #4b5563;
+    margin: 2rem 0 1rem 0;
+}
+
+.welcome-content p {
+    font-size: 1.1rem;
+    color: #6b7280;
+    line-height: 1.6;
+    margin-bottom: 1rem;
+}
+
+.welcome-content ul {
+    margin-left: 2rem;
+    margin-bottom: 1rem;
+}
+
+.welcome-content li {
+    margin: 0.5rem 0;
+    color: #6b7280;
+}
+
+.randomize-option {
+    background: #f3f4f6;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    margin: 2rem 0;
+}
+
+.randomize-option label {
+    display: flex;
+    align-items: center;
+    font-size: 1.1rem;
+    color: #1f2937;
+    cursor: pointer;
+}
+
+.randomize-option input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    margin-right: 1rem;
+    cursor: pointer;
+}
+
+.start-btn {
+    padding: 1rem 3rem;
+    background: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.start-btn:hover {
+    background: #2563eb;
+    transform: translateY(-2px);
+}
+
+.progress-bar {
+    background: #1f2937;
+    color: white;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.progress-info {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.progress-track {
+    flex: 1;
+    max-width: 600px;
+    margin: 0 2rem;
+    height: 12px;
+    background: #4b5563;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, #3b82f6);
+    transition: width 0.3s ease;
+}
+
+.main-container {
+    display: flex;
+    height: calc(100vh - 290px);
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.left-panel {
+    flex: 1;
+    background: white;
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+}
+
+.right-panel {
+    flex: 1;
+    background: white;
+    border-radius: 1rem;
+    padding: 2rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    overflow-y: auto;
+}
+
+/* Make panels more compact on narrower/shorter screens (e.g. MacBook) */
+@media (max-width: 1280px), (max-height: 820px) {
+    .main-container {
+        height: calc(100vh - 270px);
+        padding: 0.6rem;
+        gap: 0.6rem;
+    }
+
+    /* Give the left (workspace) panel more priority and shrink the operations panel */
+    .left-panel {
+        padding: 0.8rem;
+        flex: 1.4; /* give more space to workspace */
+        min-width: 380px;
+        overflow: auto;
+    }
+
+    .right-panel {
+        padding: 0.6rem;
+        flex: 0.6; /* further shrink operations panel */
+        min-width: 220px;
+        max-width: 300px;
+    }
+
+    /* Reduce heading and control sizes to save vertical space */
+    .welcome-content h1 { font-size: 2rem; }
+    .target-section h2 { font-size: 1.25rem; }
+    .workspace-section h3, .operations-section h3 { font-size: 1rem; }
+
+    .progress-bar { padding: 0.6rem; }
+
+    .action-bar { min-height: 150px; max-height: 220px; }
+
+    /* Reduce button and grid sizes to fit more controls */
+    .primitives-grid { grid-template-columns: repeat(2, 1fr); gap: 0.4rem; }
+    .primitive-btn { padding: 0.5rem; font-size: 0.78rem; }
+    .transforms-grid { grid-template-columns: repeat(2, 1fr); gap: 0.35rem; }
+    .transform-btn { padding: 0.42rem; font-size: 0.78rem; }
+    .binary-ops { grid-template-columns: repeat(2, 1fr); gap: 0.35rem; }
+}
+
+/* For very narrow laptop screens, stack panels vertically */
+@media (max-width: 900px) {
+    .main-container {
+        flex-direction: column;
+        height: auto;
+    }
+
+    .left-panel, .right-panel {
+        min-width: auto;
+        width: 100%;
+    }
+
+    .right-panel { order: 2; }
+    .left-panel { order: 1; }
+}
+
+/* Make the target pattern area and workspace canvas scale down when space is limited */
+.workspace-canvas { justify-content: center; }
+.pattern-container { transform-origin: center top; }
+
+@media (max-width: 1280px) {
+    .pattern-container { transform: scale(0.9); }
+}
+
+@media (max-width: 1100px) {
+    .pattern-container { transform: scale(0.82); }
+
+    /* Also reduce the default SVG cell size via a CSS transform on the svg to avoid touching JS */
+    #workspace svg, #targetPattern svg {
+        transform-origin: top left;
+        transform: scale(0.85);
+    }
+}
+
+/* Ensure operation log wraps and buttons remain usable */
+.operations-log { gap: 0.4rem; padding: 0.4rem; }
+.operation-chip { font-size: 0.75rem; padding: 0.25rem 0.5rem; }
+.primitive-btn, .transform-btn, .btn { padding: 0.5rem; font-size: 0.82rem; }
+
+.target-section {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.target-section h2 {
+    font-size: 1.5rem;
+    color: #1f2937;
+    margin-bottom: 1rem;
+}
+
+.workspace-section {
+    margin-top: 2rem;
+    position: relative; /* allow workspace preview overlay to position itself within this section */
+}
+
+.workspace-section h3 {
+    font-size: 1.2rem;
+    color: #1f2937;
+    margin-bottom: 1rem;
+}
+
+.workspace-canvas {
+    display: flex;
+    justify-content: center;
+}
+
+.pattern-container {
+    display: inline-block;
+}
+
+/* Workflow panel beside workspace */
+.workflow-panel {
+    background: #ffffff;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+    /* make the workflow stick nearer the top and show more steps */
+    position: sticky;
+    top: 80px; /* raised so it's closer to the target/workspace */
+    max-height: calc(100vh - 180px);
+    overflow-y: auto;
+}
+
+/* Small preview thumbnails for each operation step */
+.operation-thumb {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.operation-thumb:hover { background: #f8fafc; }
+.operation-thumb.selected { border-color: #3b82f6; background: #eef2ff; }
+.operation-thumb .thumb-svg { width: 48px; height: 48px; border: 1px solid #e5e7eb; }
+.operation-thumb .thumb-label { font-size: 0.85rem; color: #374151; }
+
+.workflow-hint {
+    font-size: 0.9rem;
+    color: #6b7280;
+    margin: 0.5rem 0 0.75rem 0;
+}
+
+.selection-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    background: #1f2937;
+    color: white;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 0.75rem;
+}
+
+.operation-thumb { position: relative; }
+
+/* bottom log was removed to avoid duplication; use .operations-log for all logs */
+
+.operations-section h3 {
+    font-size: 1.2rem;
+    color: #1f2937;
+    margin-bottom: 1rem;
+    border-bottom: 2px solid #e5e7eb;
+    padding-bottom: 0.5rem;
+}
+
+.section-group {
+    margin-bottom: 2rem;
+}
+
+.section-group h4 {
+    font-size: 1rem;
+    color: #4b5563;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+}
+
+.primitives-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.transforms-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+}
+
+.binary-ops {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+}
+
+.action-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-top: 2px solid #e5e7eb;
+    padding: 0.8rem 1rem;
+    height: auto;
+    min-height: 160px;
+    max-height: 240px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
+}
+
+.action-bar h3 {
+    font-size: 1rem;
+    color: #1f2937;
+    margin-bottom: 0.75rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+
+
+/* Binary preview panel - shown below workspace */
+.binary-preview-panel {
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* When preview is active, add subtle highlighting to workspace */
+.workspace-preview-active #workspace svg { 
+    filter: drop-shadow(0 4px 8px rgba(59, 130, 246, 0.3)); 
+    opacity: 0.85; 
+}
+
+.operations-log {
+    display: block;
+    min-height: 40px;
+    padding: 0.5rem;
+    background: #f9fafb;
+    border-radius: 0.5rem;
+}
+
+/* Workspace title styling */
+.workspace-title {
+    text-transform: capitalize;
+    font-size: 1.1rem;
+    color: #1f2937;
+    margin-bottom: 0.6rem;
+    display: inline-block;
+}
+
+/* move workspace title to the right and keep it visually centered above the canvas */
+.workspace-section .workspace-title {
+    display: block;
+    text-align: center; /* center within workspace column */
+    margin-right: 0; /* allow rightward visual balance */
+}
+
+/* Each workflow step is a row with a line-number badge */
+.operations-log .operation-thumb {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    border: 1px solid transparent;
+    margin-bottom: 0.35rem;
+}
+.operations-log .operation-thumb .line-number {
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    background: #eef2ff;
+    color: #1f2937;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+}
+
+.operation-chip {
+    padding: 0.3rem 0.6rem;
+    background: #3b82f6;
+    color: white;
+    border-radius: 0.375rem;
+    font-size: 0.8rem;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.operation-chip .remove {
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.control-buttons {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.group-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    margin-bottom: 0.4rem;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.operation-group {
+    display: flex;
+    flex-direction: column;
+    padding: 0.6rem 0.7rem;
+    background: #f9fafb;
+    border-radius: 0.5rem;
+    border: 1px solid #e5e7eb;
+}
+
+.btn-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-text {
+    font-size: 0.82rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.btn-arrow {
+    font-size: 1.1rem;
+    color: #8b5cf6;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.primitive-btn {
+    padding: 0.5rem;
+    border: 2px solid #bfdbfe;
+    background: white;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-width: 45px;
+    min-height: 45px;
+}
+
+.primitive-btn:hover {
+    border-color: #3b82f6;
+    background: #eff6ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.15);
+}
+
+.primitive-btn:active {
+    transform: translateY(0);
+}
+
+.transform-btn {
+    padding: 0.5rem 0.8rem;
+    border: 2px solid #e5e7eb;
+    background: white;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.82rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    min-width: 75px;
+}
+
+.transform-btn:active {
+    transform: translateY(0);
+}
+
+/* Unary transform buttons - purple theme */
+.unary-btn {
+    border-color: #ddd6fe;
+}
+
+.unary-btn:hover {
+    border-color: #8b5cf6;
+    background: #f5f3ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(139, 92, 246, 0.15);
+}
+
+/* Binary operation buttons - orange theme */
+.binary-btn {
+    border-color: #fed7aa;
+}
+
+.binary-btn:hover {
+    border-color: #f59e0b;
+    background: #fffbeb;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(245, 158, 11, 0.15);
+}
+
+.btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: #3b82f6;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #2563eb;
+}
+
+.btn-danger {
+    background: #ef4444;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #dc2626;
+}
+
+.btn-success {
+    background: #10b981;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #059669;
+}
+
+.btn-secondary {
+    background: #6b7280;
+    color: white;
+}
+
+.btn-secondary:hover {
+    background: #4b5563;
+}
+
+.btn-warning {
+    background: #f59e0b;
+    color: white;
+}
+
+.btn-warning:hover {
+    background: #d97706;
+}
+
+kbd {
+    display: inline-block;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.8rem;
+    font-family: monospace;
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 0.25rem;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    color: #374151;
+    font-weight: 600;
+}
+
+/* Primitive button disabled state (grey) vs enabled (blue) */
+.primitive-btn.disabled {
+    background: #f3f4f6;
+    color: #9ca3af;
+    border-color: #e5e7eb;
+    cursor: not-allowed;
+    transform: none;
+    opacity: 0.6;
+}
+
+.primitive-btn.enabled {
+    background: white;
+    color: #111827;
+    border-color: #3b82f6;
+}
+
+/* Binary button visual selected state */
+.binary-btn.selected {
+    background: #f59e0b;
+    color: white;
+    border-color: #d97706;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+.binary-btn.disabled {
+    background: #f3f4f6;
+    color: #9ca3af;
+    border-color: #e5e7eb;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Confirm/Cancel removed; keep workspace styles minimal */
+.workspace-preview { box-shadow: 0 0 0 3px rgba(59,130,246,0.06) inset; }
+
+.result-message {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    font-size: 0.9rem;
+    display: none;
+}
+
+.result-message.success {
+    background: #d1fae5;
+    color: #065f46;
+    border: 2px solid #10b981;
+    display: block;
+}
+
+.result-message.error {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 2px solid #ef4444;
+    display: block;
+}
+
+.buffer-section {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: #fef3c7;
+    border-radius: 0.5rem;
+    border: 2px solid #f59e0b;
+}
+
+.buffer-section h4 {
+    font-size: 0.9rem;
+    color: #92400e;
+    margin-bottom: 0.5rem;
+}
+
+.buffer-info {
+    font-size: 0.85rem;
+    color: #78350f;
+    font-family: 'Courier New', monospace;
+}
+
+/* Feedback Modal - Centered popup for submit results */
+.feedback-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.6);
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.feedback-modal.show {
+    display: flex;
+}
+
+.feedback-content {
+    background: white;
+    padding: 3rem 4rem;
+    border-radius: 1.5rem;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    animation: slideIn 0.3s ease-out;
+    min-width: 400px;
+}
+
+.feedback-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    animation: scaleIn 0.4s ease-out;
+}
+
+.feedback-icon.success {
+    color: #10b981;
+}
+
+.feedback-icon.error {
+    color: #ef4444;
+}
+
+.feedback-message {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #1f2937;
+    line-height: 1.4;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideIn {
+    from { 
+        opacity: 0;
+        transform: translateY(-30px) scale(0.9);
+    }
+    to { 
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes scaleIn {
+    0% { transform: scale(0); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+.completion-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    padding: 3rem;
+    border-radius: 1rem;
+    text-align: center;
+    max-width: 500px;
+}
+
+.modal-content h2 {
+    font-size: 2rem;
+    color: #1f2937;
+    margin-bottom: 1rem;
+}
+
+.modal-content p {
+    color: #6b7280;
+    margin-bottom: 2rem;
+}
+
+.hidden {
+    display: none;
+}
+/* Tutorial Styles */
+.tutorial-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: white;
+    overflow-y: auto;
+    z-index: 1500;
+}
+
+.tutorial-content {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 3rem 2rem;
+}
+
+.tutorial-content h1 {
+    font-size: 2.5rem;
+    color: #1f2937;
+    margin-bottom: 0.5rem;
+    text-align: center;
+}
+
+.tutorial-steps {
+    margin-top: 2rem;
+}
+
+.tutorial-step {
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 1rem;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.tutorial-step.hidden {
+    display: none;
+}
+
+.tutorial-step.active {
+    border-color: #3b82f6;
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.2);
+}
+
+.step-number {
+    position: absolute;
+    top: -15px;
+    left: 20px;
+    background: #3b82f6;
+    color: white;
+    padding: 0.4rem 1rem;
+    border-radius: 1rem;
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.tutorial-step h3 {
+    font-size: 1.5rem;
+    color: #1f2937;
+    margin-bottom: 0.5rem;
+}
+
+.tutorial-step p {
+    font-size: 1.1rem;
+    color: #64748b;
+    margin-bottom: 1.5rem;
+}
+
+.tutorial-workspace {
+    background: white;
+    padding: 2rem;
+    border-radius: 0.75rem;
+    border: 2px solid #cbd5e1;
+    margin: 1rem 0;
+}
+
+.step-status {
+    margin-top: 1rem;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    text-align: center;
+    display: none;
+}
+
+.step-status.success {
+    display: block;
+    background: #d1fae5;
+    color: #065f46;
+    border: 2px solid #10b981;
+}
+
+.step-status.success::before {
+    content: "✓ ";
+    font-size: 1.2rem;
+}
+
+.tutorial-btn {
+    transition: all 0.2s;
+}
+
+.tutorial-btn:not(.disabled):hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.tutorial-btn.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.tutorial-btn:not(.disabled) {
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+    }
+}
+
+#tutorialComplete {
+    border: 3px solid #10b981;
+    background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+}
