@@ -99,24 +99,24 @@ body {
 .progress-bar {
     background: #1f2937;
     color: white;
-    padding: 1rem;
+    padding: 0.5rem 1rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
 .progress-info {
-    font-size: 1.1rem;
+    font-size: 0.95rem;
     font-weight: 600;
 }
 
 .progress-track {
     flex: 1;
-    max-width: 600px;
-    margin: 0 2rem;
-    height: 12px;
+    max-width: 500px;
+    margin: 0 1.5rem;
+    height: 10px;
     background: #4b5563;
-    border-radius: 6px;
+    border-radius: 5px;
     overflow: hidden;
 }
 
@@ -128,19 +128,20 @@ body {
 
 .main-container {
     display: flex;
-    height: calc(100vh - 290px);
-    gap: 1rem;
-    padding: 1rem;
+    height: calc(100vh - 230px);
+    gap: 0.8rem;
+    padding: 0.8rem;
 }
 
 .left-panel {
     flex: 1;
     background: white;
-    border-radius: 1rem;
-    padding: 2rem;
+    border-radius: 0.75rem;
+    padding: 1rem;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     display: flex;
     flex-direction: column;
+    overflow: visible;
 }
 
 .right-panel {
@@ -153,43 +154,186 @@ body {
 }
 
 /* Make panels more compact on narrower/shorter screens (e.g. MacBook) */
-@media (max-width: 1280px), (max-height: 820px) {
+/* MacBook 优化 - 1440x900 或类似屏幕 */
+@media (max-width: 1680px) {
+    .progress-bar {
+        padding: 0.4rem 0.8rem;
+    }
+    
+    .progress-info {
+        font-size: 0.85rem;
+    }
+    
+    .progress-track {
+        height: 8px;
+        margin: 0 1rem;
+        max-width: 400px;
+    }
+    
     .main-container {
-        height: calc(100vh - 270px);
+        height: calc(100vh - 180px);
+        padding: 0.5rem;
+        gap: 0.5rem;
+    }
+
+    /* 左侧面板优化 */
+    .left-panel {
+        padding: 0.8rem;
+        flex: 1.5;
+        min-width: 350px;
+    }
+
+    /* 右侧工作流面板 - 关键优化 */
+    .right-panel {
         padding: 0.6rem;
+        flex: 0.7;
+        min-width: 240px;
+        max-width: 320px;
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100vh - 180px);
+    }
+
+    /* 工作流面板内部滚动而不是整体滚动 */
+    .workflow-panel {
+        overflow-y: auto;
+        flex: 1;
+        margin-bottom: 0.5rem;
+    }
+
+    .workflow-step {
+        padding: 0.5rem;
+        font-size: 0.85rem;
+        margin-bottom: 0.4rem;
+    }
+
+    .step-number {
+        font-size: 0.8rem;
+        width: 20px;
+        height: 20px;
+        line-height: 20px;
+    }
+
+    /* 标题尺寸减小 */
+    .welcome-content h1 { font-size: 1.8rem; margin-bottom: 0.8rem; }
+    .target-section h2 { font-size: 1.1rem; margin-bottom: 0.6rem; }
+    .workspace-section h3, .operations-section h3 { font-size: 0.95rem; margin-bottom: 0.5rem; }
+    .workflow-title { font-size: 0.95rem; margin-bottom: 0.6rem; }
+
+    /* 区域间距优化 */
+    .section { margin-bottom: 0.8rem; }
+
+    /* 操作栏优化 */
+    .action-bar {
+        min-height: 120px;
+        max-height: 180px;
+        padding: 0.6rem 0.8rem;
         gap: 0.6rem;
     }
 
-    /* Give the left (workspace) panel more priority and shrink the operations panel */
+    /* 按钮网格优化 */
+    .primitives-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.35rem;
+    }
+
+    .primitive-btn {
+        padding: 0.45rem;
+        font-size: 0.75rem;
+    }
+
+    .transforms-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.3rem;
+    }
+
+    .transform-btn {
+        padding: 0.4rem;
+        font-size: 0.75rem;
+    }
+
+    .binary-ops {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.3rem;
+    }
+
+    .binary-op-btn {
+        padding: 0.4rem;
+        font-size: 0.75rem;
+    }
+
+    /* 操作按钮区域 */
+    .action-buttons {
+        gap: 0.5rem;
+    }
+
+    .action-buttons .btn {
+        padding: 0.6rem 1.2rem;
+        font-size: 0.9rem;
+    }
+
+    /* Canvas 缩放 */
+    .pattern-container {
+        transform: scale(0.85);
+        transform-origin: center top;
+    }
+
+    #workspace svg, #targetPattern svg {
+        transform-origin: top left;
+        transform: scale(0.8);
+    }
+}
+
+/* 更小的MacBook屏幕 (如 MacBook Air) */
+@media (max-width: 1280px), (max-height: 820px) {
+    .main-container {
+        height: calc(100vh - 160px);
+        padding: 0.4rem;
+        gap: 0.4rem;
+    }
+
     .left-panel {
-        padding: 0.8rem;
-        flex: 1.4; /* give more space to workspace */
-        min-width: 380px;
-        overflow: auto;
+        padding: 0.6rem;
+        flex: 1.6;
+        min-width: 320px;
     }
 
     .right-panel {
-        padding: 0.6rem;
-        flex: 0.6; /* further shrink operations panel */
+        padding: 0.5rem;
+        flex: 0.6;
         min-width: 220px;
-        max-width: 300px;
+        max-width: 280px;
+        max-height: calc(100vh - 160px);
     }
 
-    /* Reduce heading and control sizes to save vertical space */
-    .welcome-content h1 { font-size: 2rem; }
-    .target-section h2 { font-size: 1.25rem; }
-    .workspace-section h3, .operations-section h3 { font-size: 1rem; }
+    .workflow-step {
+        padding: 0.4rem;
+        font-size: 0.8rem;
+    }
 
-    .progress-bar { padding: 0.6rem; }
+    .action-bar {
+        min-height: 100px;
+        max-height: 160px;
+        padding: 0.5rem;
+    }
 
-    .action-bar { min-height: 150px; max-height: 220px; }
+    .primitive-btn, .transform-btn, .binary-op-btn {
+        padding: 0.35rem;
+        font-size: 0.7rem;
+    }
 
-    /* Reduce button and grid sizes to fit more controls */
-    .primitives-grid { grid-template-columns: repeat(2, 1fr); gap: 0.4rem; }
-    .primitive-btn { padding: 0.5rem; font-size: 0.78rem; }
-    .transforms-grid { grid-template-columns: repeat(2, 1fr); gap: 0.35rem; }
-    .transform-btn { padding: 0.42rem; font-size: 0.78rem; }
-    .binary-ops { grid-template-columns: repeat(2, 1fr); gap: 0.35rem; }
+    .action-buttons .btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.85rem;
+    }
+
+    .pattern-container {
+        transform: scale(0.75);
+    }
+
+    #workspace svg, #targetPattern svg {
+        transform: scale(0.75);
+    }
 }
 
 /* For very narrow laptop screens, stack panels vertically */
@@ -266,12 +410,12 @@ body {
 .workflow-panel {
     background: #ffffff;
     border-radius: 0.5rem;
-    padding: 1rem;
+    padding: 0.8rem;
     box-shadow: 0 1px 6px rgba(0,0,0,0.06);
     /* make the workflow stick nearer the top and show more steps */
     position: sticky;
-    top: 80px; /* raised so it's closer to the target/workspace */
-    max-height: calc(100vh - 180px);
+    top: 50px; /* raised so it's closer to the target/workspace */
+    max-height: calc(100vh - 150px);
     overflow-y: auto;
 }
 
