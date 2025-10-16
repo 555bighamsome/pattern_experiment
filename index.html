@@ -79,6 +79,7 @@
                                             </button>
                                         </div>
                                     </div>
+
                                     <div class="buffer-section" id="bufferSection" style="display: none; margin-top:1rem;">
                                         <h4>Buffer (for binary operations)</h4>
                                         <div class="buffer-info" id="bufferInfo">No buffer</div>
@@ -107,6 +108,24 @@
                 <div style="flex:1;">
                     <h4 style="margin:0 0 0.5rem 0; font-size:1rem; color:#1f2937;">Operations</h4>
                         <div style="display:flex; gap:0.6rem; align-items:flex-start; flex-wrap:wrap;">
+                            <!-- Binary ops -->
+                            <div class="operation-group">
+                                <div class="group-title" style="color:#f59e0b;">
+                                    <span style="font-size:1rem;">●</span> Binary
+                                </div>
+                                <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+                                    <button id="bin-add" data-op="add" class="transform-btn binary-btn" onclick="selectBinaryOp('add')" title="Add/OR two patterns">
+                                        <span class="btn-text">add</span>
+                                    </button>
+                                    <button id="bin-subtract" data-op="subtract" class="transform-btn binary-btn" onclick="selectBinaryOp('subtract')" title="Subtract one pattern from another">
+                                        <span class="btn-text">subtract</span>
+                                    </button>
+                                    <button id="bin-union" data-op="union" class="transform-btn binary-btn" onclick="selectBinaryOp('union')" title="Union/AND two patterns">
+                                        <span class="btn-text">union</span>
+                                    </button>
+                                </div>
+                            </div>
+
                             <!-- Primitives -->
                             <div class="operation-group">
                                 <div class="group-title" style="color:#3b82f6;">
@@ -154,24 +173,6 @@
                                     <button class="transform-btn unary-btn" onclick="applyTransform('reflect_diag')" title="Reflect diagonally">
                                         <span class="btn-arrow">⤢</span>
                                         <span class="btn-text">flip_d</span>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Binary ops -->
-                            <div class="operation-group">
-                                <div class="group-title" style="color:#f59e0b;">
-                                    <span style="font-size:1rem;">●</span> Binary
-                                </div>
-                                <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
-                                    <button id="bin-add" data-op="add" class="transform-btn binary-btn" onclick="selectBinaryOp('add')" title="Add/OR two patterns">
-                                        <span class="btn-text">add</span>
-                                    </button>
-                                    <button id="bin-subtract" data-op="subtract" class="transform-btn binary-btn" onclick="selectBinaryOp('subtract')" title="Subtract one pattern from another">
-                                        <span class="btn-text">subtract</span>
-                                    </button>
-                                    <button id="bin-union" data-op="union" class="transform-btn binary-btn" onclick="selectBinaryOp('union')" title="Union/AND two patterns">
-                                        <span class="btn-text">union</span>
                                     </button>
                                 </div>
                             </div>
