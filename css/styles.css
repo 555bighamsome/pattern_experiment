@@ -218,13 +218,46 @@ body {
     padding: 0.6rem;
     border-radius: 0.5rem;
     cursor: pointer;
-    border: 1px solid transparent;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+    position: relative;
 }
 
-.operation-thumb:hover { background: #f8fafc; }
-.operation-thumb.selected { border-color: #3b82f6; background: #eef2ff; }
-.operation-thumb .thumb-svg { width: 48px; height: 48px; border: 1px solid #e5e7eb; }
-.operation-thumb .thumb-label { font-size: 0.85rem; color: #374151; }
+.operation-thumb:hover { 
+    background: #f8fafc; 
+    border-color: #cbd5e1;
+}
+
+.operation-thumb.selected { 
+    border-color: #ff9900; 
+    background: linear-gradient(135deg, #fff5e6 0%, #ffe4b8 100%);
+    box-shadow: 0 0 15px rgba(255, 153, 0, 0.5), 0 2px 8px rgba(0,0,0,0.1);
+    animation: selected-glow 1.5s ease-in-out infinite;
+}
+
+.operation-thumb .thumb-svg { 
+    width: 48px; 
+    height: 48px; 
+    border: 2px solid #e5e7eb;
+    border-radius: 0.25rem;
+    transition: all 0.3s ease;
+}
+
+.operation-thumb.selected .thumb-svg {
+    border-color: #ff9900;
+    box-shadow: 0 0 10px rgba(255, 153, 0, 0.3);
+}
+
+.operation-thumb .thumb-label { 
+    font-size: 0.85rem; 
+    color: #374151;
+    font-weight: 500;
+}
+
+.operation-thumb.selected .thumb-label {
+    color: #cc6600;
+    font-weight: 600;
+}
 
 .workflow-hint {
     font-size: 0.9rem;
@@ -236,15 +269,19 @@ body {
     position: absolute;
     top: 8px;
     left: 8px;
-    background: #1f2937;
+    background: linear-gradient(135deg, #ff9900, #ff6600);
     color: white;
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 50%;
-    font-size: 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    border: 2px solid white;
+    box-shadow: 0 2px 8px rgba(255, 153, 0, 0.5);
+    z-index: 10;
 }
 
 .operation-thumb { position: relative; }
@@ -317,7 +354,7 @@ body {
 
 
 
-/* Binary preview panel - shown below workspace */
+/* Binary preview panel - shown below workspace with glow effect */
 .binary-preview-panel {
     animation: slideDown 0.3s ease-out;
 }
@@ -333,10 +370,13 @@ body {
     }
 }
 
-/* When preview is active, add subtle highlighting to workspace */
+/* When preview is active, add highlighting to workspace with orange glow */
 .workspace-preview-active #workspace svg { 
-    filter: drop-shadow(0 4px 8px rgba(59, 130, 246, 0.3)); 
-    opacity: 0.85; 
+    filter: drop-shadow(0 4px 12px rgba(255, 153, 0, 0.4)); 
+    opacity: 1;
+    border: 3px solid #ff9900;
+    border-radius: 0.5rem;
+    box-shadow: 0 0 20px rgba(255, 153, 0, 0.3);
 }
 
 .operations-log {
@@ -461,6 +501,34 @@ body {
     transform: translateY(0);
 }
 
+/* Primitive 按钮选中状态（用于 binary operations） */
+.primitive-btn.binary-selected {
+    border-color: #ff9900;
+    background: linear-gradient(135deg, #fff5e6 0%, #ffe4b8 100%);
+    box-shadow: 0 0 15px rgba(255, 153, 0, 0.5), 0 2px 8px rgba(0,0,0,0.1);
+    animation: selected-glow 1.5s ease-in-out infinite;
+    position: relative;
+}
+
+.primitive-btn.binary-selected::after {
+    content: '✓';
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: linear-gradient(135deg, #ff9900, #ff6600);
+    color: white;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 700;
+    border: 2px solid white;
+    box-shadow: 0 2px 8px rgba(255, 153, 0, 0.5);
+}
+
 .transform-btn {
     padding: 0.4rem 0.7rem;
     border: 2px solid #e5e7eb;
@@ -542,6 +610,22 @@ body {
     background: #059669;
 }
 
+/* Binary operation 确认按钮特殊样式 */
+.binary-confirm-btn {
+    background: linear-gradient(135deg, #10b981, #059669) !important;
+    font-weight: 600;
+    padding: 0.6rem 1.2rem !important;
+    font-size: 0.95rem !important;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    transition: all 0.3s ease;
+}
+
+.binary-confirm-btn:hover {
+    background: linear-gradient(135deg, #059669, #047857) !important;
+    box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+    transform: translateY(-2px);
+}
+
 .btn-secondary {
     background: #6b7280;
     color: white;
@@ -549,6 +633,22 @@ body {
 
 .btn-secondary:hover {
     background: #4b5563;
+}
+
+/* Binary operation 取消按钮特殊样式 */
+.binary-cancel-btn {
+    background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+    font-weight: 600;
+    padding: 0.6rem 1.2rem !important;
+    font-size: 0.95rem !important;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    transition: all 0.3s ease;
+}
+
+.binary-cancel-btn:hover {
+    background: linear-gradient(135deg, #dc2626, #b91c1c) !important;
+    box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+    transform: translateY(-2px);
 }
 
 .btn-warning {
@@ -562,15 +662,15 @@ body {
 
 kbd {
     display: inline-block;
-    padding: 0.1rem 0.4rem;
+    padding: 0.2rem 0.5rem;
     font-size: 0.8rem;
-    font-family: monospace;
-    background: #f3f4f6;
-    border: 1px solid #d1d5db;
-    border-radius: 0.25rem;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
-    color: #374151;
-    font-weight: 600;
+    font-family: 'Courier New', monospace;
+    background: linear-gradient(135deg, #fff, #f3f4f6);
+    border: 2px solid #d1d5db;
+    border-radius: 0.3rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15), inset 0 -2px 0 rgba(0,0,0,0.1);
+    color: #1f2937;
+    font-weight: 700;
 }
 
 /* Primitive button disabled state (grey) vs enabled (blue) */
@@ -725,6 +825,26 @@ kbd {
     0% { transform: scale(0); }
     50% { transform: scale(1.2); }
     100% { transform: scale(1); }
+}
+
+/* 荧光选中动画效果 */
+@keyframes selected-glow {
+    0%, 100% {
+        box-shadow: 0 0 15px rgba(255, 153, 0, 0.5), 0 2px 8px rgba(0,0,0,0.1);
+    }
+    50% {
+        box-shadow: 0 0 25px rgba(255, 153, 0, 0.8), 0 4px 12px rgba(0,0,0,0.15);
+    }
+}
+
+/* Binary preview 面板脉冲动画 */
+@keyframes glow-pulse {
+    0%, 100% {
+        box-shadow: 0 0 20px rgba(255, 153, 0, 0.4), 0 4px 12px rgba(0,0,0,0.15);
+    }
+    50% {
+        box-shadow: 0 0 30px rgba(255, 153, 0, 0.6), 0 6px 16px rgba(0,0,0,0.2);
+    }
 }
 
 .completion-modal {
