@@ -61,46 +61,23 @@
                     <!-- Workspace column (top-aligned with Target) -->
                     <div style="flex:1;">
                         <h3 class="section-title">Workspace</h3>
-                        <div style="display:flex; gap:1rem; align-items:flex-start;">
-                            <div style="flex:1;">
-                                <div class="workspace-canvas" id="workspace"></div>
-                                    <!-- Binary preview panel below workspace -->
-                                    <div class="binary-preview-panel" id="binaryPreviewPanel" style="display: none; margin-top: 1rem; padding: 1rem; background: linear-gradient(135deg, #fff5e6 0%, #ffe4b8 100%); border-radius: 0.75rem; box-shadow: 0 0 20px rgba(255, 153, 0, 0.4), 0 4px 12px rgba(0,0,0,0.15); border: 3px solid #ff9900; animation: glow-pulse 2s ease-in-out infinite;">
-                                        <div style="font-weight:700; color:#cc6600; margin-bottom:8px; font-size: 1rem; display: flex; align-items: center; gap: 0.5rem;">
-                                            <span style="font-size: 1.2rem;">⚡</span> Binary Operation Preview
-                                        </div>
-                                        <div style="font-size:0.9rem; color:#8b5a00; margin-bottom:12px; font-weight: 500;">
-                                            Review the result below. Press <kbd>Enter</kbd> to confirm or <kbd>Esc</kbd> to cancel.
-                                        </div>
-                                        <div style="display:flex; gap:0.8rem; justify-content:center; margin-top: 0.5rem;">
-                                            <button class="btn btn-success binary-confirm-btn" id="confirmBinaryBtnOverlay" onclick="confirmBinaryPreview()">
-                                                <span style="font-size: 1.1rem; margin-right: 0.3rem;">✓</span>
-                                                <span style="opacity:0.8; font-size: 0.75rem; margin-right: 0.3rem;">Enter</span> 
-                                                Confirm
-                                            </button>
-                                            <button class="btn btn-secondary binary-cancel-btn" id="cancelBinaryBtnOverlay" onclick="cancelBinaryPreview()">
-                                                <span style="font-size: 1.1rem; margin-right: 0.3rem;">✗</span>
-                                                <span style="opacity:0.8; font-size: 0.75rem; margin-right: 0.3rem;">Esc</span> 
-                                                Cancel
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div class="buffer-section" id="bufferSection" style="display: none; margin-top:1rem;">
-                                        <h4>Buffer (for binary operations)</h4>
-                                        <div class="buffer-info" id="bufferInfo">No buffer</div>
-                                    </div>
-                                </div>
-                            </div>
+                        <div class="workspace-canvas" id="workspace"></div>
+                        
+                        <!-- Binary operation status indicator -->
+                        <div id="binaryStatusBar" style="display: none; margin-top: 1rem; padding: 0.8rem; background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 2px solid #3b82f6; border-radius: 0.5rem; text-align: center; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);">
+                            <div id="binaryStatusText" style="font-weight: 600; color: #1e40af; font-size: 0.95rem;"></div>
+                        </div>
                     </div>
 
                     <!-- Workflow panel sits to the right of Target/Workspace -->
                     <div class="workflow-panel" style="width:480px;">
                         <div class="workflow-header">
-                            <h4 style="margin:0; color:#4b5563;">Workflow / Operations</h4>
-                            <div class="count-pill">Current: <span id="trialCount">0</span></div>
+                            <h4 style="margin:0; color:#1f2937; font-size: 1.1rem;">
+                                📋 Workflow / Operations
+                            </h4>
+                            <div class="count-pill">Steps: <span id="trialCount">0</span></div>
                         </div>
-                        <div id="workflowHint" class="workflow-hint">Select two steps in the workflow to enable binary operations (clicking a primitive will generate and select the corresponding step in the workflow)</div>
+                        <div id="workflowHint" class="workflow-hint">💡 Click a binary operation to begin</div>
                         <div class="operations-log" id="operationsLog">
                             <span style="color: #9ca3af; font-size: 0.85rem;">Waiting for operations...</span>
                         </div>
@@ -208,6 +185,56 @@
             <div class="feedback-content">
                 <div class="feedback-icon" id="feedbackIcon"></div>
                 <div class="feedback-message" id="feedbackMessage"></div>
+            </div>
+        </div>
+
+        <!-- Binary Preview Modal - Full Screen Overlay -->
+        <div id="binaryPreviewModal" class="binary-preview-modal" style="display: none;">
+            <div class="binary-preview-overlay" onclick="cancelBinaryPreview()"></div>
+            <div class="binary-preview-content">
+                <div class="binary-preview-header">
+                    <h3 style="margin: 0; color: #f59e0b; font-size: 1.3rem;">
+                        ⚡ Binary Operation Preview
+                    </h3>
+                    <button class="modal-close-btn" onclick="cancelBinaryPreview()" title="Close (Esc)">✕</button>
+                </div>
+                
+                <div class="binary-preview-body">
+                    <div class="preview-operands">
+                        <div class="preview-operand">
+                            <div class="operand-label">Pattern 1</div>
+                            <div id="previewOperand1" class="operand-canvas"></div>
+                        </div>
+                        <div class="preview-operator">
+                            <div id="previewOperatorSymbol" class="operator-symbol">+</div>
+                        </div>
+                        <div class="preview-operand">
+                            <div class="operand-label">Pattern 2</div>
+                            <div id="previewOperand2" class="operand-canvas"></div>
+                        </div>
+                        <div class="preview-arrow">→</div>
+                        <div class="preview-result">
+                            <div class="result-label">Result</div>
+                            <div id="previewResult" class="result-canvas"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="binary-preview-footer">
+                    <div style="text-align: center; margin-bottom: 1rem; color: #6b7280; font-size: 0.9rem;">
+                        Press <kbd>Enter</kbd> to confirm or <kbd>Esc</kbd> to cancel
+                    </div>
+                    <div style="display: flex; gap: 1rem; justify-content: center;">
+                        <button class="btn btn-success" onclick="confirmBinaryPreview()" style="min-width: 150px; font-size: 1.1rem;">
+                            <span style="font-size: 1.2rem; margin-right: 0.4rem;">✓</span>
+                            Confirm
+                        </button>
+                        <button class="btn btn-secondary" onclick="cancelBinaryPreview()" style="min-width: 150px; font-size: 1.1rem;">
+                            <span style="font-size: 1.2rem; margin-right: 0.4rem;">✗</span>
+                            Cancel
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
