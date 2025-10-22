@@ -242,6 +242,7 @@ button {
     border-radius: var(--radius-md);
     border: 1px dashed var(--color-border);
     padding: 0.75rem;
+    min-height: clamp(260px, 34vh, 420px);
 }
 
 .workspace-canvas svg,
@@ -803,7 +804,7 @@ button {
    Responsive adjustments
 ------------------------------------------------------------------- */
 
-@media (max-width: 1400px) {
+@media (max-width: 1650px) {
     body {
         overflow-y: auto;
     }
@@ -822,11 +823,12 @@ button {
 
     .content-area {
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        grid-template-rows: auto auto auto;
+        grid-template-rows: auto auto auto auto;
         grid-template-areas:
             "target workspace"
             "program program"
-            "controls preview";
+            "controls controls"
+            "preview preview";
         height: auto;
         min-height: calc(100vh - 90px);
         overflow: visible;
@@ -839,8 +841,14 @@ button {
         min-height: 0;
     }
 
+    .panel-card.program-card,
+    .panel-card.controls-card,
+    .panel-card.preview-card {
+        grid-column: 1 / -1;
+    }
+
     .operations-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .primitives-grid-inline {
@@ -873,6 +881,17 @@ button {
     .binary-preview-body,
     .binary-preview-footer {
         justify-content: center;
+    }
+}
+
+@media (max-width: 1280px) {
+    .operations-grid,
+    .primitives-grid-inline {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .program-card {
+        gap: 0.95rem;
     }
 }
 
