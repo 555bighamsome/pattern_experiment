@@ -24,6 +24,11 @@ function resetInlinePreviewState() {
     inlinePreview = createInlinePreviewState();
 }
 
+// Small helper to deep-clone patterns/objects (used to avoid mutating originals)
+function clone(obj) {
+    return JSON.parse(JSON.stringify(obj));
+}
+
 function setWorkspaceGlow(isActive) {
     const workspaceEl = document.getElementById('workspace');
     if (!workspaceEl) return;
@@ -51,7 +56,7 @@ function resolveBinaryOperandSources() {
     }
 
     workflowSelections
-        // 工作流选择按点击顺序记录在数组中，保留顺序即可
+        // workflowSelections are recorded in click order; preserve that order
         .slice()
         .forEach(idx => {
             if (typeof idx !== 'number' || !operationsHistory[idx]) return;
@@ -85,7 +90,6 @@ let trialStartTime = null;
 let testOrder = [];
 let shouldRandomize = false;
 let currentTrialRecord = null; // holds per-trial detailed record (steps etc.)
-// preview removed; operations commit immediately
 
 const geomDSL = {
     blank: () => Array(SIZE).fill(0).map(() => Array(SIZE).fill(0)),
@@ -450,20 +454,20 @@ function renderPattern(pattern, containerId, options = {}) {
 
     const palette = {
         add: {
-            base: '#265dff',        // 原有保留
-            newCell: '#22c55e',     // 新增
+            base: '#265dff',        // base cell (both)
+            newCell: '#22c55e',     // newly added cell
             ghost: 'rgba(37, 99, 235, 0.18)'
         },
         subtract: {
-            base: '#312e81',        // 保留下来的
-            removed: '#f97316',     // 被减掉的（高亮橙）
-            newCell: '#22d3ee',     // 减完又出现的新形状（少见）
+            base: '#312e81',        // retained cell
+            removed: '#f97316',     // removed cell (highlight)
+            newCell: '#22d3ee',     // newly appeared cell after subtract (rare)
             ghost: 'rgba(249, 115, 22, 0.2)'
         },
         union: {
-            overlap: '#9333ea',     // A∩B
-            onlyBase: '#3b82f6',    // 仅来自被选中的第一图
-            onlyOther: '#facc15',   // 仅来自第二图
+            overlap: '#9333ea',     // overlap A ∩ B
+            onlyBase: '#3b82f6',    // only from base (first operand)
+            onlyOther: '#facc15',   // only from other (second operand)
             ghost: 'rgba(148, 163, 184, 0.2)'
         }
     };
@@ -709,13 +713,13 @@ function getTotalTrials() {
 function applyPrimitive(name) {
     // Primitives only work in binary mode for creating operands (do not log into Program)
     if (!pendingBinaryOp) {
-        alert('⚠️ 请先选择一个二元操作（add/subtract/union）。');
+        alert('⚠️ Please select a binary operation first (add/subtract/union).');
         return;
     }
 
     // Generate a temporary operand pattern (not added to operationsHistory)
     const pat = geomDSL[name]();
-    // 不更新 workspace；只填充临时操作数，由预览来驱动 workspace
+    // Do not update the workspace; only fill a temporary operand. The preview drives the workspace.
 
     const { aSource, bSource } = resolveBinaryOperandSources();
 
@@ -726,7 +730,7 @@ function applyPrimitive(name) {
         inlinePreview.bPattern = pat;
         inlinePreview.bIndex = null;
     } else {
-        // 两个槽位都已占用：默认替换右侧槽位
+    // Both slots are occupied: default to replace the right slot
         if (bSource.type === 'history' && typeof bSource.index === 'number') {
             const pos = workflowSelections.indexOf(bSource.index);
             if (pos !== -1) workflowSelections.splice(pos, 1);
@@ -774,7 +778,7 @@ function applyTransform(name) {
     }
     
     // Apply transform to the source pattern
-    currentPattern = transDSL[name](JSON.parse(JSON.stringify(sourcePattern)));
+    currentPattern = transDSL[name](clone(sourcePattern));
     renderPattern(currentPattern, 'workspace', {
         diffMode: pendingBinaryOp,
         basePattern: previewBackupPattern?.pattern
@@ -792,7 +796,7 @@ function addOperation(op) {
     // default: simple operation entry
     const entry = {
         operation: op,
-        pattern: JSON.parse(JSON.stringify(currentPattern)),
+        pattern: clone(currentPattern),
         timestamp: Date.now()
     };
     operationsHistory.push(entry);
@@ -801,22 +805,22 @@ function addOperation(op) {
         const stepEntry = {
             id: `s${Date.now()}_${Math.floor(Math.random()*1000)}`,
             operation: op,
-            pattern: JSON.parse(JSON.stringify(currentPattern)),
+            pattern: clone(currentPattern),
             timestamp: Date.now()
         };
         currentTrialRecord.steps.push(stepEntry);
         currentTrialRecord.operations.push(op);
         currentTrialRecord.stepsCount = currentTrialRecord.steps.length;
     }
-    updateOperationsLog();
+    // clear the small operations log area before re-rendering
+    const log = document.getElementById('operationsLog');
+    if (log) log.innerHTML = '';
     renderWorkflow();
     updateAllButtonStates();
 }
 
 function updateOperationsLog() {
-    // keep this for backward compatibility with other log area
-    const log = document.getElementById('operationsLog');
-    if (log) log.innerHTML = '';
+    // removed: simplified in-place where used
 }
 
 function renderWorkflow() {
@@ -856,7 +860,7 @@ function renderWorkflow() {
         // If operation is in function format like 'add(selected)' or 'add(W1,W2)'
         const binaryMatch = opText.match(/^(add|subtract|union)\((.*)\)$/);
         if (binaryMatch) {
-            // 表达式渲染：结果缩略图 + 灰底表达式 token（op( A , B )）
+            // Render expression: result thumbnail + expression token (op(A, B))
             const fn = binaryMatch[1];
             const svgWrap = document.createElement('div');
             svgWrap.className = 'thumb-svg';
@@ -873,7 +877,7 @@ function renderWorkflow() {
                 renderPattern(currentPattern, 'workspace');
             });
 
-            // 表达式 token 区
+            // Expression token area
             const expr = document.createElement('div');
             expr.className = 'program-expr';
             const opTok = document.createElement('span');
@@ -1036,8 +1040,6 @@ function selectBinaryOp(op) {
 // Unified button state management for intuitive interaction
 function updateAllButtonStates() {
     const isBinaryMode = (pendingBinaryOp !== null);
-    const workflowCount = operationsHistory.length;
-    const selectionCount = workflowSelections.length;
     
     // === PRIMITIVE BUTTONS ===
     // Only enabled in binary mode
@@ -1120,7 +1122,8 @@ function applySelectedBinary() {
     const labelA = operandLabel(a);
     const labelB = operandLabel(b);
 
-    // 在 Program 中希望以“缩略图表达式”显示，因此 operation 文本保留，同时在 entry 上放置结构化字段
+    // For the Program panel we display a thumbnail-expression, so keep the operation text
+    // and attach structured fields to the entry
     const opText = `${pendingBinaryOp}(${labelA},${labelB})`;
     addOperation(opText);
     const last = operationsHistory[operationsHistory.length - 1];
@@ -1152,7 +1155,7 @@ function createBinaryPreview() {
         previewPattern = null;
         previewBackupPattern = null;
         const base = (operationsHistory.length > 0) ? operationsHistory[operationsHistory.length - 1].pattern : geomDSL.blank();
-        currentPattern = JSON.parse(JSON.stringify(base));
+        currentPattern = clone(base);
         renderPattern(currentPattern, 'workspace');
         setWorkspaceGlow(false);
         updateInlinePreviewPanel();
@@ -1168,10 +1171,10 @@ function createBinaryPreview() {
 
     const base = (operationsHistory.length > 0) ? operationsHistory[operationsHistory.length - 1].pattern : geomDSL.blank();
     previewBackupPattern = {
-        pattern: JSON.parse(JSON.stringify(base)),
+        pattern: clone(base),
         operands: {
-            a: JSON.parse(JSON.stringify(aPattern)),
-            b: JSON.parse(JSON.stringify(bPattern))
+            a: clone(aPattern),
+            b: clone(bPattern)
         }
     };
 
@@ -1179,8 +1182,8 @@ function createBinaryPreview() {
     inlinePreview.aIndex = (aSource && aSource.type === 'history') ? aSource.index : null;
     inlinePreview.bIndex = (bSource && bSource.type === 'history') ? bSource.index : null;
 
-    previewPattern = func(JSON.parse(JSON.stringify(aPattern)), JSON.parse(JSON.stringify(bPattern)));
-    currentPattern = JSON.parse(JSON.stringify(previewPattern));
+    previewPattern = func(clone(aPattern), clone(bPattern));
+    currentPattern = clone(previewPattern);
     renderPattern(currentPattern, 'workspace');
     setWorkspaceGlow(true);
 
@@ -1195,7 +1198,7 @@ function clearBinaryPreview() {
     
     // restore workspace to last committed pattern if available
     const base = (operationsHistory.length > 0) ? operationsHistory[operationsHistory.length - 1].pattern : geomDSL.blank();
-    currentPattern = JSON.parse(JSON.stringify(base));
+    currentPattern = clone(base);
     renderPattern(currentPattern, 'workspace');
     
     // Clear pending operation AND selections
@@ -1504,7 +1507,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     pendingBinaryOp = null;
     updateAllButtonStates();
-    // double-click primitive = 快速填充临时操作数（不写入 Program）
+    // double-click primitive = quick-fill temporary operand (does not write to Program)
     document.querySelectorAll('.primitive-btn[data-op]').forEach(btn => {
         btn.addEventListener('dblclick', (e) => {
             const op = btn.getAttribute('data-op');
