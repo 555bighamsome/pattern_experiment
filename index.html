@@ -48,135 +48,100 @@
             </div>
         </div>
 
-            <div class="main-container">
-            <div class="left-panel">
-                <!-- Row: Target | Workspace | Workflow -->
-                <div style="display:flex; gap:1rem; align-items:flex-start;">
-                    <!-- Target column -->
-                    <div style="width:360px;">
-                        <h3 class="section-title">Target Pattern <span id="targetNumber">1</span></h3>
-                        <div id="targetPattern"></div>
+        <div class="content-area">
+            <div class="panel-card target-card">
+                <h3 class="panel-title">Target Pattern <span id="targetNumber">1</span></h3>
+                <div id="targetPattern" class="pattern-view"></div>
+            </div>
+            <div class="panel-card pattern-card">
+                <h3 class="panel-title">Your Pattern</h3>
+                <div class="workspace-canvas" id="workspace"></div>
+            </div>
+            <div class="panel-card program-card">
+                <div class="program-header">
+                    <h3>Your Program</h3>
+                    <button class="btn btn-success" onclick="submitAnswer()" title="Submit your answer and proceed to next pattern">
+                        <span style="font-size:1.1rem; margin-right:0.2rem;">✓</span> Submit
+                    </button>
+                </div>
+                <div class="operations-log" id="operationsLog">
+                    <span style="color: #9ca3af; font-size: 0.85rem;">Waiting for operations...</span>
+                </div>
+            </div>
+            <div class="panel-card controls-card">
+                <div class="controls-section operations-section">
+                    <h4 class="panel-subtitle">Operations</h4>
+                    <div class="operations-grid">
+                        <button id="bin-add" data-op="add" class="transform-btn binary-btn" onclick="selectBinaryOp('add')" title="Add/OR two patterns">
+                            <span class="btn-text">add</span>
+                        </button>
+                        <button id="bin-subtract" data-op="subtract" class="transform-btn binary-btn" onclick="selectBinaryOp('subtract')" title="Subtract one pattern from another">
+                            <span class="btn-text">subtract</span>
+                        </button>
+                        <button id="bin-union" data-op="union" class="transform-btn binary-btn" onclick="selectBinaryOp('union')" title="Union/AND two patterns">
+                            <span class="btn-text">union</span>
+                        </button>
+                        <button class="transform-btn unary-btn" onclick="applyTransform('invert')" title="Invert pattern (flip black/white)">
+                            <span class="btn-text">invert</span>
+                        </button>
+                        <button class="transform-btn unary-btn" onclick="applyTransform('reflect_horizontal')" title="Reflect horizontally - top ⟷ bottom">
+                            <span class="btn-arrow">⇵</span>
+                            <span class="btn-text">flip_h</span>
+                        </button>
+                        <button class="transform-btn unary-btn" onclick="applyTransform('reflect_vertical')" title="Reflect vertically - left ⟷ right">
+                            <span class="btn-arrow">⇄</span>
+                            <span class="btn-text">flip_v</span>
+                        </button>
+                        <button class="transform-btn unary-btn" onclick="applyTransform('reflect_diag')" title="Reflect diagonally">
+                            <span class="btn-arrow">⤢</span>
+                            <span class="btn-text">flip_d</span>
+                        </button>
                     </div>
-
-                    <!-- Workspace column (top-aligned with Target) -->
-                    <div style="flex:1;">
-                        <h3 class="section-title">Workspace</h3>
-                        <div class="workspace-canvas" id="workspace"></div>
-                        
-                        <!-- Binary operation status indicator -->
-                        <div id="binaryStatusBar" style="display: none; margin-top: 1rem; padding: 0.8rem; background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 2px solid #3b82f6; border-radius: 0.5rem; text-align: center; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);">
-                            <div id="binaryStatusText" style="font-weight: 600; color: #1e40af; font-size: 0.95rem;"></div>
-                        </div>
-                    </div>
-
-                    <!-- Workflow panel sits to the right of Target/Workspace -->
-                    <div class="workflow-panel" style="width:480px;">
-                        <div class="workflow-header">
-                            <h4 style="margin:0; color:#1f2937; font-size: 1.1rem;">
-                                📋 Workflow / Operations
-                            </h4>
-                            <div class="count-pill">Steps: <span id="trialCount">0</span></div>
-                        </div>
-                        <div id="workflowHint" class="workflow-hint">💡 Click a binary operation to begin</div>
-                        <div class="operations-log" id="operationsLog">
-                            <span style="color: #9ca3af; font-size: 0.85rem;">Waiting for operations...</span>
-                        </div>
+                </div>
+                <div class="controls-section primitives-section">
+                    <h4 class="panel-subtitle">Primitives</h4>
+                    <div class="primitives-grid-inline">
+                        <button class="primitive-btn" data-op="blank" onclick="applyPrimitive('blank')" title="Create blank pattern">
+                            <span class="btn-icon"></span>
+                        </button>
+                        <button class="primitive-btn" data-op="line_horizontal" onclick="applyPrimitive('line_horizontal')" title="Horizontal line">
+                            <span class="btn-icon"></span>
+                        </button>
+                        <button class="primitive-btn" data-op="line_vertical" onclick="applyPrimitive('line_vertical')" title="Vertical line">
+                            <span class="btn-icon"></span>
+                        </button>
+                        <button class="primitive-btn" data-op="diagonal" onclick="applyPrimitive('diagonal')" title="Diagonal line">
+                            <span class="btn-icon"></span>
+                        </button>
+                        <button class="primitive-btn" data-op="square" onclick="applyPrimitive('square')" title="Square shape">
+                            <span class="btn-icon"></span>
+                        </button>
+                        <button class="primitive-btn" data-op="triangle" onclick="applyPrimitive('triangle')" title="Triangle shape">
+                            <span class="btn-icon"></span>
+                        </button>
                     </div>
                 </div>
             </div>
-        </div>
-
-        <div class="action-bar">
-            <div style="display:flex; gap:0.6rem; align-items:flex-start; flex-wrap:wrap;">
-                <div style="flex:1;">
-                    <h4 style="margin:0 0 0.5rem 0; font-size:1rem; color:#1f2937;">Operations</h4>
-                        <div style="display:flex; gap:0.6rem; align-items:flex-start; flex-wrap:wrap;">
-                            <!-- Binary ops -->
-                            <div class="operation-group">
-                                <div class="group-title" style="color:#f59e0b;">
-                                    <span style="font-size:1rem;">●</span> Binary
-                                </div>
-                                <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
-                                    <button id="bin-add" data-op="add" class="transform-btn binary-btn" onclick="selectBinaryOp('add')" title="Add/OR two patterns">
-                                        <span class="btn-text">add</span>
-                                    </button>
-                                    <button id="bin-subtract" data-op="subtract" class="transform-btn binary-btn" onclick="selectBinaryOp('subtract')" title="Subtract one pattern from another">
-                                        <span class="btn-text">subtract</span>
-                                    </button>
-                                    <button id="bin-union" data-op="union" class="transform-btn binary-btn" onclick="selectBinaryOp('union')" title="Union/AND two patterns">
-                                        <span class="btn-text">union</span>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Primitives -->
-                            <div class="operation-group">
-                                <div class="group-title" style="color:#3b82f6;">
-                                    <span style="font-size:1rem;">●</span> Primitives
-                                </div>
-                                <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
-                                    <button class="primitive-btn" data-op="blank" onclick="applyPrimitive('blank')" title="Create blank pattern">
-                                        <span class="btn-icon"></span>
-                                    </button>
-                                    <button class="primitive-btn" data-op="line_horizontal" onclick="applyPrimitive('line_horizontal')" title="Horizontal line">
-                                        <span class="btn-icon"></span>
-                                    </button>
-                                    <button class="primitive-btn" data-op="line_vertical" onclick="applyPrimitive('line_vertical')" title="Vertical line">
-                                        <span class="btn-icon"></span>
-                                    </button>
-                                    <button class="primitive-btn" data-op="diagonal" onclick="applyPrimitive('diagonal')" title="Diagonal line">
-                                        <span class="btn-icon"></span>
-                                    </button>
-                                    <button class="primitive-btn" data-op="square" onclick="applyPrimitive('square')" title="Square shape">
-                                        <span class="btn-icon"></span>
-                                    </button>
-                                    <button class="primitive-btn" data-op="triangle" onclick="applyPrimitive('triangle')" title="Triangle shape">
-                                        <span class="btn-icon"></span>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Unary transforms -->
-                            <div class="operation-group">
-                                <div class="group-title" style="color:#8b5cf6;">
-                                    <span style="font-size:1rem;">●</span> Unary
-                                </div>
-                                <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
-                                    <button class="transform-btn unary-btn" onclick="applyTransform('invert')" title="Invert pattern (flip black/white)">
-                                        <span class="btn-text">invert</span>
-                                    </button>
-                                    <button class="transform-btn unary-btn" onclick="applyTransform('reflect_horizontal')" title="Reflect horizontally - top ⟷ bottom">
-                                        <span class="btn-arrow">⇵</span>
-                                        <span class="btn-text">flip_h</span>
-                                    </button>
-                                    <button class="transform-btn unary-btn" onclick="applyTransform('reflect_vertical')" title="Reflect vertically - left ⟷ right">
-                                        <span class="btn-arrow">⇄</span>
-                                        <span class="btn-text">flip_v</span>
-                                    </button>
-                                    <button class="transform-btn unary-btn" onclick="applyTransform('reflect_diag')" title="Reflect diagonally">
-                                        <span class="btn-arrow">⤢</span>
-                                        <span class="btn-text">flip_d</span>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+            <div id="binaryPreviewPanel" class="panel-card preview-card binary-preview-panel">
+                <div class="binary-preview-header is-hidden">
+                    <div id="binaryPreviewTitle" class="binary-preview-title"></div>
                 </div>
-
-                <!-- removed duplicate bottom workflow/log to avoid UI duplication -->
-            </div>
-
-            <div style="display:flex; gap:0.5rem; margin-top:0.6rem; align-items:center;">
-                <button class="btn btn-success" onclick="submitAnswer()" title="Submit your answer and proceed to next pattern">
-                    <span style="font-size:1.1rem; margin-right:0.2rem;">✓</span> Submit
-                </button>
-                <button class="btn btn-secondary" onclick="undoLast()" title="Undo last operation">
-                    <span style="font-size:1rem; margin-right:0.2rem;">↶</span> Undo
-                </button>
-                <button class="btn btn-warning" onclick="resetWorkspace()" title="Clear all operations and start over">
-                    <span style="font-size:1rem; margin-right:0.2rem;">⟲</span> Reset
-                </button>
-                <!-- preview controls moved into workspace overlay -->
-                <div class="result-message" id="resultMessage" style="margin-left:1rem;"></div>
+                <div id="binaryPreviewPlaceholder" class="binary-preview-placeholder">Select add, subtract, or union to get started</div>
+                <div id="binaryPreviewBody" class="binary-preview-body" style="display:none;">
+                    <div id="binaryInlineOpLabel" class="binary-inline-op">add(</div>
+                    <div id="binaryOperandA" class="operand-box" title="Click to remove"></div>
+                    <div class="binary-inline-comma">,</div>
+                    <div id="binaryOperandB" class="operand-box" title="Click to remove"></div>
+                    <div class="binary-inline-close">)</div>
+                </div>
+                <div class="binary-preview-footer">
+                    <button id="binaryConfirmBtn" class="btn btn-success binary-confirm-btn" onclick="confirmBinaryPreview()" disabled>
+                        ✓ Confirm
+                    </button>
+                    <button id="binaryResetBtn" class="btn btn-warning binary-cancel-btn" onclick="resetBinaryStep()" disabled>
+                        ⟲ Reset
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -188,55 +153,6 @@
             </div>
         </div>
 
-        <!-- Binary Preview Modal - Full Screen Overlay -->
-        <div id="binaryPreviewModal" class="binary-preview-modal" style="display: none;">
-            <div class="binary-preview-overlay" onclick="cancelBinaryPreview()"></div>
-            <div class="binary-preview-content">
-                <div class="binary-preview-header">
-                    <h3 style="margin: 0; color: #f59e0b; font-size: 1.3rem;">
-                        ⚡ Binary Operation Preview
-                    </h3>
-                    <button class="modal-close-btn" onclick="cancelBinaryPreview()" title="Close (Esc)">✕</button>
-                </div>
-                
-                <div class="binary-preview-body">
-                    <div class="preview-operands">
-                        <div class="preview-operand">
-                            <div class="operand-label">Pattern 1</div>
-                            <div id="previewOperand1" class="operand-canvas"></div>
-                        </div>
-                        <div class="preview-operator">
-                            <div id="previewOperatorSymbol" class="operator-symbol">+</div>
-                        </div>
-                        <div class="preview-operand">
-                            <div class="operand-label">Pattern 2</div>
-                            <div id="previewOperand2" class="operand-canvas"></div>
-                        </div>
-                        <div class="preview-arrow">→</div>
-                        <div class="preview-result">
-                            <div class="result-label">Result</div>
-                            <div id="previewResult" class="result-canvas"></div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="binary-preview-footer">
-                    <div style="text-align: center; margin-bottom: 1rem; color: #6b7280; font-size: 0.9rem;">
-                        Press <kbd>Enter</kbd> to confirm or <kbd>Esc</kbd> to cancel
-                    </div>
-                    <div style="display: flex; gap: 1rem; justify-content: center;">
-                        <button class="btn btn-success" onclick="confirmBinaryPreview()" style="min-width: 150px; font-size: 1.1rem;">
-                            <span style="font-size: 1.2rem; margin-right: 0.4rem;">✓</span>
-                            Confirm
-                        </button>
-                        <button class="btn btn-secondary" onclick="cancelBinaryPreview()" style="min-width: 150px; font-size: 1.1rem;">
-                            <span style="font-size: 1.2rem; margin-right: 0.4rem;">✗</span>
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         <div class="completion-modal" id="completionModal">
             <div class="modal-content">
