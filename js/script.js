@@ -38,6 +38,9 @@ function resetUnaryPreviewState() {
     unaryPreviewState = createUnaryPreviewState();
 }
 
+// when true, unary mode was just entered and we must NOT auto-fill operand from selection/implicit sources
+let unaryModeJustEntered = false;
+
 function setWorkspaceGlow(isActive) {
     const workspaceEl = document.getElementById('workspace');
     if (!workspaceEl) return;
@@ -98,6 +101,10 @@ function resolveBinaryOperandSources() {
 function resolveUnaryOperandSource() {
     if (unaryPreviewState.source) {
         return unaryPreviewState.source;
+    }
+    // If unary mode was just entered, don't auto-populate the operand; require explicit user action
+    if (unaryModeJustEntered) {
+        return null;
     }
 
     if (workflowSelections.length > 0) {
@@ -609,6 +616,52 @@ function renderPattern(pattern, containerId, options = {}) {
     container.appendChild(svg);
 }
 
+// --- Toast helper (non-blocking notifications) ---
+function ensureToastContainer() {
+    let c = document.getElementById('app-toast-container');
+    if (!c) {
+        c = document.createElement('div');
+        c.id = 'app-toast-container';
+        c.style.position = 'fixed';
+        c.style.right = '16px';
+        c.style.bottom = '16px';
+        c.style.zIndex = 9999;
+        c.style.display = 'flex';
+        c.style.flexDirection = 'column';
+        c.style.gap = '8px';
+        document.body.appendChild(c);
+    }
+    return c;
+}
+
+function showToast(message, type = 'info', timeout = 2500) {
+    const container = ensureToastContainer();
+    const toast = document.createElement('div');
+    toast.className = 'app-toast app-toast-' + type;
+    toast.textContent = message;
+    toast.style.padding = '8px 12px';
+    toast.style.borderRadius = '6px';
+    toast.style.boxShadow = '0 6px 16px rgba(0,0,0,0.12)';
+    toast.style.background = (type === 'error') ? '#f87171' : (type === 'warning' ? '#fbbf24' : '#111827');
+    toast.style.color = '#fff';
+    toast.style.fontSize = '13px';
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(6px)';
+    toast.style.transition = 'opacity 180ms ease, transform 180ms ease';
+    container.appendChild(toast);
+    // trigger enter
+    requestAnimationFrame(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+    });
+    // remove after timeout
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(6px)';
+        setTimeout(() => container.removeChild(toast), 220);
+    }, timeout);
+}
+
 // Render a small thumbnail SVG for workflow preview
 function renderThumbnail(pattern, scale = 6) {
     const svgNS = "http://www.w3.org/2000/svg";
@@ -767,7 +820,7 @@ function getTotalTrials() {
 function applyPrimitive(name) {
     // Primitives provide operands for pending operations (binary or unary)
     if (!pendingBinaryOp && !pendingUnaryOp) {
-        alert('⚠️ Please select an operation (binary or unary) before choosing a primitive.');
+        showToast('⚠️ Please select an operation (binary or unary) before choosing a primitive.', 'warning');
         return;
     }
 
@@ -775,6 +828,11 @@ function applyPrimitive(name) {
 
     if (pendingBinaryOp) {
         const { aSource, bSource } = resolveBinaryOperandSources();
+        // If two operands are already selected, do not replace them.
+        if (aSource && bSource) {
+            showToast('Two operands are already selected. Reset or confirm the current operation before adding another.', 'warning');
+            return;
+        }
 
         if (!aSource) {
             inlinePreview.aPattern = pat;
@@ -782,22 +840,18 @@ function applyPrimitive(name) {
         } else if (!bSource) {
             inlinePreview.bPattern = pat;
             inlinePreview.bIndex = null;
-        } else {
-            if (bSource.type === 'history' && typeof bSource.index === 'number') {
-                const pos = workflowSelections.indexOf(bSource.index);
-                if (pos !== -1) workflowSelections.splice(pos, 1);
-            }
-            inlinePreview.bPattern = pat;
-            inlinePreview.bIndex = null;
         }
         createBinaryPreview();
     } else if (pendingUnaryOp) {
+        console.debug('applyPrimitive: setting unary operand from primitive', name);
         unaryPreviewState.source = {
             type: 'primitive',
             index: null,
             pattern: pat,
             origin: 'primitive'
         };
+        // explicit operand provided
+        unaryModeJustEntered = false;
         workflowSelections = [];
         createUnaryPreview();
     }
@@ -829,10 +883,13 @@ function selectUnaryOp(name) {
     pendingUnaryOp = name;
     resetUnaryPreviewState();
     unaryPreviewState.op = name;
+    // mark that unary mode was just entered — operand must be provided explicitly
+    unaryModeJustEntered = true;
     previewPattern = null;
     previewBackupPattern = null;
     setWorkspaceGlow(false);
 
+    // createUnaryPreview will return no preview until an explicit operand is provided
     createUnaryPreview();
     renderWorkflow();
     updateAllButtonStates();
@@ -1086,6 +1143,7 @@ function onWorkflowClick(idx) {
         if (!operationsHistory[idx] || !operationsHistory[idx].pattern) {
             return;
         }
+        console.debug('onWorkflowClick: setting unary operand from workflow index', idx);
         workflowSelections = [idx];
         unaryPreviewState.source = {
             type: 'history',
@@ -1093,6 +1151,8 @@ function onWorkflowClick(idx) {
             pattern: JSON.parse(JSON.stringify(operationsHistory[idx].pattern)),
             origin: 'selection'
         };
+        // explicit operand provided
+        unaryModeJustEntered = false;
         renderWorkflow();
         createUnaryPreview();
         updateAllButtonStates();
@@ -1116,7 +1176,13 @@ function toggleWorkflowSelection(idx) {
         if (pendingUnaryOp) {
             workflowSelections = [];
         }
+        // If already have two operands in binary mode, do not replace them.
+        if (pendingBinaryOp && workflowSelections.length >= 2) {
+            showToast('Two operands are already selected. Reset or confirm the current operation before selecting another.', 'warning');
+            return;
+        }
         if (workflowSelections.length >= 2) {
+            // non-binary fallback behavior: shift oldest selection
             const removed = workflowSelections.shift();
             if (inlinePreview.aIndex === removed) inlinePreview.aIndex = null;
             if (inlinePreview.bIndex === removed) inlinePreview.bIndex = null;
@@ -1234,7 +1300,7 @@ function updateAllButtonStates() {
 function applySelectedBinary() {
     // Confirm handler should route here: if a previewPattern exists, commit it
     if (!previewPattern) {
-        alert('No preview available to confirm');
+        showToast('No preview available to confirm', 'warning');
         return;
     }
     // commit preview to history
@@ -1295,7 +1361,7 @@ function createBinaryPreview() {
 
     const func = transDSL[pendingBinaryOp];
     if (!func) {
-        alert('Unknown binary operation');
+        showToast('Unknown binary operation', 'error');
         setWorkspaceGlow(false);
         return;
     }
@@ -1347,7 +1413,7 @@ function createUnaryPreview() {
 
     const func = transDSL[pendingUnaryOp];
     if (typeof func !== 'function') {
-        alert('Unknown unary operation');
+        showToast('Unknown unary operation', 'error');
         setWorkspaceGlow(false);
         return;
     }
@@ -1426,7 +1492,7 @@ function clearUnaryPreview() {
 
 function applySelectedUnary() {
     if (!pendingUnaryOp || !previewPattern) {
-        alert('No preview available to confirm');
+        showToast('No preview available to confirm', 'warning');
         return;
     }
 
@@ -1472,7 +1538,7 @@ function confirmPendingOperation() {
     } else if (pendingUnaryOp) {
         applySelectedUnary();
     } else {
-        alert('Select an operation to confirm.');
+        showToast('Select an operation to confirm.', 'warning');
     }
 }
 
@@ -1705,7 +1771,7 @@ function resetWorkspace() {
 
 function submitAnswer() {
     if (!currentPattern) {
-        alert('Please create a pattern first');
+        showToast('Please create a pattern first', 'warning');
         return;
     }
     

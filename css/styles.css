@@ -27,6 +27,21 @@
     --layout-rows: 340px 400px;
 }
 
+.app-toast {
+    display: inline-block;
+    min-width: 120px;
+    max-width: 320px;
+    word-break: break-word;
+}
+
+.app-toast-error {
+    background: #ef4444; /* red */
+}
+
+.app-toast-warning {
+    background: #f59e0b; /* amber */
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -510,10 +525,18 @@ button {
     box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.3);
 }
 
-.binary-btn.selected {
+.binary-btn.selected,
+.unary-btn.selected {
     background: linear-gradient(135deg, #4f46e5 0%, #2563eb 100%);
     color: white;
     box-shadow: 0 16px 30px rgba(59, 130, 246, 0.35);
+}
+
+/* Make unary buttons share the same base appearance as binary buttons */
+.unary-btn {
+    background: var(--color-primary-soft);
+    color: var(--color-primary-strong);
+    box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.3);
 }
 
 .binary-btn.disabled,
@@ -823,6 +846,12 @@ button {
     font-weight: 700;
     color: var(--color-primary-strong);
     line-height: 1;
+}
+
+/* Ensure arrow icons become visible on selected (blue) buttons */
+.binary-btn.selected .btn-arrow,
+.unary-btn.selected .btn-arrow {
+    color: white;
 }
 
 .primitive-btn.enabled,
