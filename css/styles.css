@@ -1,6 +1,5 @@
 :root {
     --color-page-bg: #f4f6fb;
-    --progress-height: 64px;
     --color-surface: #ffffff;
     --color-surface-soft: #f8fafc;
     --color-border: #d8e0f0;
@@ -24,7 +23,7 @@
     --font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
     --layout-max-width: 1200px;
     --layout-height: 780px;
-    --layout-columns: 320px 320px 560px;
+    --layout-columns: 320px 320px 480px;
     --layout-rows: 340px 400px;
 }
 
@@ -39,9 +38,7 @@ body {
     background: var(--color-page-bg);
     color: var(--color-text);
     min-height: 100vh;
-    /* Enforce no page-level scroll: fit everything into the viewport and allow panels to scroll internally */
     overflow: hidden;
-    -webkit-font-smoothing: antialiased;
 }
 
 img,
@@ -153,12 +150,14 @@ button {
 .progress-bar {
     background: linear-gradient(120deg, #111827 0%, #1f2937 100%);
     color: white;
-    padding: 0 1.25rem;
+    padding: 0.65rem 1.5rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1.5rem;
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.3);
+    width: min(100%, var(--layout-max-width));
+    margin: 0 auto;
 }
 
 .progress-info {
@@ -192,16 +191,17 @@ button {
 
 .content-area {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr);
-    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: var(--layout-columns);
+    grid-template-rows: var(--layout-rows);
     grid-template-areas:
         "target workspace program"
         "controls preview program";
-    height: calc(100vh - 90px);
-    padding: 1.25rem 1.5rem;
+    width: min(100%, var(--layout-max-width));
+    height: var(--layout-height);
+    padding: 1.25rem;
+    box-sizing: border-box;
     gap: 1.25rem;
     overflow: hidden;
-    align-items: stretch;
 }
 
 .panel-card {
@@ -214,6 +214,7 @@ button {
     flex-direction: column;
     position: relative;
     min-height: 0;
+    height: 100%;
 }
 
 .target-card { grid-area: target; }
@@ -250,7 +251,7 @@ button {
 
 .pattern-view,
 .workspace-canvas {
-    flex: 1 1 auto;
+    flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -258,30 +259,15 @@ button {
     border-radius: var(--radius-md);
     border: 1px dashed var(--color-border);
     padding: 0.75rem;
+    min-height: 0;
 }
 
 .workspace-canvas svg,
 .pattern-view svg {
     max-width: 100%;
     height: auto;
-    /* Fit SVG within its panel; let the panel determine available height */
-    max-height: 100%;
-    width: auto;
 }
 
-
-/* Make sure panels can scroll internally without causing body scroll */
-.program-card,
-.controls-card,
-.preview-card,
-.target-card,
-.pattern-card {
-    min-height: 0; /* allow flex children to shrink */
-}
-
-.program-card .operations-log {
-    overflow-y: auto;
-}
 /* Program panel --------------------------------------------------- */
 
 .program-card {
@@ -436,6 +422,15 @@ button {
 .program-expr-comma,
 .program-expr-close {
     color: #475569;
+}
+
+.program-expr-label {
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    color: #475569;
+    opacity: 0.75;
+    display: inline-flex;
+    align-items: center;
 }
 
 /* Controls -------------------------------------------------------- */
@@ -618,7 +613,8 @@ button {
     --binary-operand-size: 72px;
     display: flex;
     align-items: stretch;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
     gap: 0.75rem;
     padding: 0.8rem 1rem;
     border: 1px solid rgba(148, 163, 184, 0.55);
