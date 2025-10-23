@@ -6,6 +6,7 @@ let targetPattern = null;
 let operationsHistory = [];
 let workflowSelections = []; // indices of selected workflow items
 let pendingBinaryOp = null; // e.g. 'add', 'subtract', 'union'
+let pendingUnaryOp = null; // e.g. 'invert', 'reflect_horizontal'
 let previewPattern = null;
 let previewBackupPattern = null;
 function createInlinePreviewState() {
@@ -22,11 +23,6 @@ let inlinePreview = createInlinePreviewState();
 
 function resetInlinePreviewState() {
     inlinePreview = createInlinePreviewState();
-}
-
-// Small helper to deep-clone patterns/objects (used to avoid mutating originals)
-function clone(obj) {
-    return JSON.parse(JSON.stringify(obj));
 }
 
 function setWorkspaceGlow(isActive) {
@@ -84,6 +80,50 @@ function resolveBinaryOperandSources() {
     }
 
     return { aSource, bSource };
+}
+
+function resolveUnaryOperandSource() {
+    if (unaryPreviewState.source) {
+        return unaryPreviewState.source;
+    }
+
+    if (workflowSelections.length > 0) {
+        const idx = workflowSelections[0];
+        if (typeof idx === 'number' && operationsHistory[idx]) {
+            return {
+                type: 'history',
+                index: idx,
+                pattern: operationsHistory[idx].pattern,
+                origin: 'selection'
+            };
+        }
+    }
+
+    const lastIdx = operationsHistory.length - 1;
+    if (lastIdx >= 0 && operationsHistory[lastIdx]) {
+        return {
+            type: 'history',
+            index: lastIdx,
+            pattern: operationsHistory[lastIdx].pattern,
+            origin: 'implicit-last'
+        };
+    }
+
+    if (currentPattern) {
+        return {
+            type: 'workspace',
+            index: null,
+            pattern: currentPattern,
+            origin: 'workspace'
+        };
+    }
+
+    return {
+        type: 'workspace',
+        index: null,
+        pattern: geomDSL.blank(),
+        origin: 'workspace'
+    };
 }
 let allTrialsData = [];
 let trialStartTime = null;
@@ -713,15 +753,15 @@ function getTotalTrials() {
 function applyPrimitive(name) {
     // Primitives only work in binary mode for creating operands (do not log into Program)
     if (!pendingBinaryOp) {
-        alert('⚠️ Please select a binary operation first (add/subtract/union).');
+        alert('⚠️ 请先选择一个二元操作（add/subtract/union）。');
         return;
     }
 
-    // Generate a temporary operand pattern (not added to operationsHistory)
     const pat = geomDSL[name]();
-    // Do not update the workspace; only fill a temporary operand. The preview drives the workspace.
+    // 不更新 workspace；只填充临时操作数，由预览来驱动 workspace
 
-    const { aSource, bSource } = resolveBinaryOperandSources();
+    if (pendingBinaryOp) {
+        const { aSource, bSource } = resolveBinaryOperandSources();
 
     if (!aSource) {
         inlinePreview.aPattern = pat;
@@ -730,7 +770,7 @@ function applyPrimitive(name) {
         inlinePreview.bPattern = pat;
         inlinePreview.bIndex = null;
     } else {
-    // Both slots are occupied: default to replace the right slot
+        // 两个槽位都已占用：默认替换右侧槽位
         if (bSource.type === 'history' && typeof bSource.index === 'number') {
             const pos = workflowSelections.indexOf(bSource.index);
             if (pos !== -1) workflowSelections.splice(pos, 1);
@@ -744,8 +784,9 @@ function applyPrimitive(name) {
     updateAllButtonStates();
 }
 
-function applyTransform(name) {
-    // Transforms disabled in binary mode
+function selectUnaryOp(name) {
+    const wasActive = pendingUnaryOp === name;
+
     if (pendingBinaryOp) {
         alert('❌ Transforms are not available in binary mode.\n\nPlease cancel the binary operation first (press Esc or click the selected binary button again).');
         return;
@@ -778,7 +819,7 @@ function applyTransform(name) {
     }
     
     // Apply transform to the source pattern
-    currentPattern = transDSL[name](clone(sourcePattern));
+    currentPattern = transDSL[name](JSON.parse(JSON.stringify(sourcePattern)));
     renderPattern(currentPattern, 'workspace', {
         diffMode: pendingBinaryOp,
         basePattern: previewBackupPattern?.pattern
@@ -790,6 +831,11 @@ function applyTransform(name) {
     workflowSelections = [newIndex];
     renderWorkflow();
     updateAllButtonStates();
+    updateInlinePreviewPanel();
+}
+
+function applyTransform(name) {
+    selectUnaryOp(name);
 }
 
 function addOperation(op) {
@@ -979,6 +1025,20 @@ function onWorkflowClick(idx) {
         createBinaryPreview();
         
         updateAllButtonStates();
+    } else if (pendingUnaryOp) {
+        if (!operationsHistory[idx] || !operationsHistory[idx].pattern) {
+            return;
+        }
+        workflowSelections = [idx];
+        unaryPreviewState.source = {
+            type: 'history',
+            index: idx,
+            pattern: JSON.parse(JSON.stringify(operationsHistory[idx].pattern)),
+            origin: 'selection'
+        };
+        renderWorkflow();
+        createUnaryPreview();
+        updateAllButtonStates();
     } else {
         // Normal mode: load pattern and mark as selected for transforms
         if (operationsHistory[idx] && operationsHistory[idx].pattern) {
@@ -996,6 +1056,9 @@ function toggleWorkflowSelection(idx) {
     const pos = workflowSelections.indexOf(idx);
     if (pos === -1) {
         // allow up to 2 selections, preserve click order
+        if (pendingUnaryOp) {
+            workflowSelections = [];
+        }
         if (workflowSelections.length >= 2) {
             const removed = workflowSelections.shift();
             if (inlinePreview.aIndex === removed) inlinePreview.aIndex = null;
@@ -1022,6 +1085,8 @@ function selectBinaryOp(op) {
     } else {
         // Entering binary mode or switching to different operation
         pendingBinaryOp = op;
+        pendingUnaryOp = null;
+        resetUnaryPreviewState();
         
         // Clear selections when entering or switching
         workflowSelections = [];
@@ -1040,40 +1105,43 @@ function selectBinaryOp(op) {
 // Unified button state management for intuitive interaction
 function updateAllButtonStates() {
     const isBinaryMode = (pendingBinaryOp !== null);
+    const workflowCount = operationsHistory.length;
+    const selectionCount = workflowSelections.length;
     
     // === PRIMITIVE BUTTONS ===
-    // Only enabled in binary mode
+    // Enabled when an operation (binary or unary) is pending
     const prims = document.querySelectorAll('.primitive-btn');
     prims.forEach(b => {
-        if (isBinaryMode) {
-            // Binary mode: primitives can be used as operands
+        if (isBinaryMode || isUnaryMode) {
             b.classList.remove('disabled');
             b.classList.add('enabled');
-            b.title = 'Create a pattern to use in binary operation';
+            b.title = b.getAttribute('data-original-title') || 'Create a pattern to use in the current operation';
         } else {
             // Normal mode: primitives are disabled
             b.classList.add('disabled');
             b.classList.remove('enabled');
-            b.title = 'Select a binary operation first to use primitives';
+            b.title = 'Select an operation first to use primitives';
         }
     });
     
-    // === TRANSFORM BUTTONS ===
-    // Disabled in binary mode (to avoid confusion)
-    const transforms = document.querySelectorAll('.transform-btn:not(.binary-btn)');
-    transforms.forEach(b => {
+    // === UNARY BUTTONS ===
+    const unaryButtons = document.querySelectorAll('.unary-btn');
+    unaryButtons.forEach(btn => {
+        const op = btn.getAttribute('data-op');
         if (isBinaryMode) {
-            b.classList.add('disabled');
-            b.classList.remove('enabled');
-            b.title = 'Not available in binary mode - cancel binary operation first';
-        } else if (currentPattern) {
-            b.classList.remove('disabled');
-            b.classList.add('enabled');
-            b.title = b.getAttribute('data-original-title') || '';
+            btn.classList.add('disabled');
+            btn.classList.remove('enabled');
+            btn.title = 'Unary operations are disabled while a binary operation is active';
         } else {
-            b.classList.add('disabled');
-            b.classList.remove('enabled');
-            b.title = 'Create a pattern first';
+            btn.classList.remove('disabled');
+            btn.classList.add('enabled');
+            btn.title = btn.getAttribute('data-original-title') || '';
+        }
+
+        if (pendingUnaryOp === op) {
+            btn.classList.add('selected');
+        } else {
+            btn.classList.remove('selected');
         }
     });
     
@@ -1089,10 +1157,18 @@ function updateAllButtonStates() {
             btn.classList.add('selected');
             btn.classList.remove('disabled');
             btn.classList.add('enabled');
+            btn.title = btn.getAttribute('data-original-title') || '';
         } else {
             btn.classList.remove('selected');
-            btn.classList.remove('disabled');
-            btn.classList.add('enabled');
+            if (isUnaryMode) {
+                btn.classList.add('disabled');
+                btn.classList.remove('enabled');
+                btn.title = 'Binary operations are disabled while a unary operation is active';
+            } else {
+                btn.classList.remove('disabled');
+                btn.classList.add('enabled');
+                btn.title = btn.getAttribute('data-original-title') || '';
+            }
         }
     });
     
@@ -1122,8 +1198,7 @@ function applySelectedBinary() {
     const labelA = operandLabel(a);
     const labelB = operandLabel(b);
 
-    // For the Program panel we display a thumbnail-expression, so keep the operation text
-    // and attach structured fields to the entry
+    // 在 Program 中希望以“缩略图表达式”显示，因此 operation 文本保留，同时在 entry 上放置结构化字段
     const opText = `${pendingBinaryOp}(${labelA},${labelB})`;
     addOperation(opText);
     const last = operationsHistory[operationsHistory.length - 1];
@@ -1190,10 +1265,74 @@ function createBinaryPreview() {
     updateInlinePreviewPanel();
 }
 
+function createUnaryPreview() {
+    if (!pendingUnaryOp) {
+        previewPattern = null;
+        previewBackupPattern = null;
+        resetUnaryPreviewState();
+        setWorkspaceGlow(false);
+        updateInlinePreviewPanel();
+        return;
+    }
+
+    const source = resolveUnaryOperandSource();
+    if (!source || !source.pattern) {
+        previewPattern = null;
+        previewBackupPattern = null;
+        const base = (operationsHistory.length > 0)
+            ? operationsHistory[operationsHistory.length - 1].pattern
+            : (currentPattern || geomDSL.blank());
+        currentPattern = JSON.parse(JSON.stringify(base));
+        renderPattern(currentPattern, 'workspace');
+        setWorkspaceGlow(false);
+        updateInlinePreviewPanel();
+        return;
+    }
+
+    const func = transDSL[pendingUnaryOp];
+    if (typeof func !== 'function') {
+        alert('Unknown unary operation');
+        setWorkspaceGlow(false);
+        return;
+    }
+
+    const base = (operationsHistory.length > 0)
+        ? operationsHistory[operationsHistory.length - 1].pattern
+        : (currentPattern || geomDSL.blank());
+
+    previewBackupPattern = {
+        pattern: JSON.parse(JSON.stringify(base)),
+        operands: {
+            input: JSON.parse(JSON.stringify(source.pattern))
+        },
+        mode: 'unary',
+        operandSource: {
+            type: source.type,
+            index: source.index ?? null,
+            origin: source.origin || null
+        }
+    };
+
+    unaryPreviewState.op = pendingUnaryOp;
+    unaryPreviewState.source = {
+        type: source.type,
+        index: source.index ?? null,
+        pattern: JSON.parse(JSON.stringify(source.pattern)),
+        origin: source.origin || null
+    };
+
+    previewPattern = func(JSON.parse(JSON.stringify(source.pattern)));
+    currentPattern = JSON.parse(JSON.stringify(previewPattern));
+    renderPattern(currentPattern, 'workspace');
+    setWorkspaceGlow(true);
+    updateInlinePreviewPanel();
+}
+
 function clearBinaryPreview() {
     previewPattern = null;
     previewBackupPattern = null;
     resetInlinePreviewState();
+    resetUnaryPreviewState();
     setWorkspaceGlow(false);
     
     // restore workspace to last committed pattern if available
@@ -1203,25 +1342,129 @@ function clearBinaryPreview() {
     
     // Clear pending operation AND selections
     pendingBinaryOp = null;
+    pendingUnaryOp = null;
     workflowSelections = [];
     
     updateAllButtonStates();
     updateInlinePreviewPanel();
 }
 
+function clearUnaryPreview() {
+    previewPattern = null;
+    previewBackupPattern = null;
+    resetUnaryPreviewState();
+    setWorkspaceGlow(false);
+
+    const base = (operationsHistory.length > 0)
+        ? operationsHistory[operationsHistory.length - 1].pattern
+        : geomDSL.blank();
+    currentPattern = JSON.parse(JSON.stringify(base));
+    renderPattern(currentPattern, 'workspace');
+
+    pendingUnaryOp = null;
+    workflowSelections = [];
+
+    updateAllButtonStates();
+    updateInlinePreviewPanel();
+}
+
+function applySelectedUnary() {
+    if (!pendingUnaryOp || !previewPattern) {
+        alert('No preview available to confirm');
+        return;
+    }
+
+    const sourceSnapshot = previewBackupPattern && previewBackupPattern.operands
+        ? previewBackupPattern.operands.input
+        : (unaryPreviewState.source && unaryPreviewState.source.pattern);
+    const operandSourceMeta = previewBackupPattern && previewBackupPattern.operandSource
+        ? previewBackupPattern.operandSource
+        : (unaryPreviewState.source
+            ? {
+                type: unaryPreviewState.source.type,
+                index: unaryPreviewState.source.index ?? null,
+                origin: unaryPreviewState.source.origin || null
+            }
+            : null);
+
+    currentPattern = JSON.parse(JSON.stringify(previewPattern));
+    renderPattern(currentPattern, 'workspace');
+
+    let operandLabel = '•';
+    if (operandSourceMeta && typeof operandSourceMeta.index === 'number') {
+        operandLabel = `${operandSourceMeta.index + 1}`;
+    }
+
+    const opText = `${pendingUnaryOp}(${operandLabel})`;
+    addOperation(opText);
+    const last = operationsHistory[operationsHistory.length - 1];
+    last.opFn = pendingUnaryOp;
+    const operandCopy = (sourceSnapshot !== undefined && sourceSnapshot !== null)
+        ? JSON.parse(JSON.stringify(sourceSnapshot))
+        : null;
+    last.operands = { input: operandCopy };
+    last.operandSource = operandSourceMeta;
+
+    workflowSelections = [];
+    clearUnaryPreview();
+    renderWorkflow();
+}
+
+function confirmPendingOperation() {
+    if (pendingBinaryOp) {
+        applySelectedBinary();
+    } else if (pendingUnaryOp) {
+        applySelectedUnary();
+    } else {
+        alert('Select an operation to confirm.');
+    }
+}
+
+function resetPendingOperation() {
+    if (pendingBinaryOp) {
+        if (previewBackupPattern && previewBackupPattern.pattern) {
+            currentPattern = JSON.parse(JSON.stringify(previewBackupPattern.pattern));
+            renderPattern(currentPattern, 'workspace');
+        }
+        pendingBinaryOp = null;
+        workflowSelections = [];
+        previewPattern = null;
+        previewBackupPattern = null;
+        resetInlinePreviewState();
+        resetUnaryPreviewState();
+        setWorkspaceGlow(false);
+        updateAllButtonStates();
+        updateInlinePreviewPanel();
+        renderWorkflow();
+    } else if (pendingUnaryOp) {
+        if (previewBackupPattern && previewBackupPattern.pattern) {
+            currentPattern = JSON.parse(JSON.stringify(previewBackupPattern.pattern));
+            renderPattern(currentPattern, 'workspace');
+        } else {
+            const base = (operationsHistory.length > 0)
+                ? operationsHistory[operationsHistory.length - 1].pattern
+                : geomDSL.blank();
+            currentPattern = JSON.parse(JSON.stringify(base));
+            renderPattern(currentPattern, 'workspace');
+        }
+        pendingUnaryOp = null;
+        workflowSelections = [];
+        previewPattern = null;
+        previewBackupPattern = null;
+        resetUnaryPreviewState();
+        setWorkspaceGlow(false);
+        updateAllButtonStates();
+        updateInlinePreviewPanel();
+        renderWorkflow();
+    }
+}
+
 function confirmBinaryPreview() {
-    applySelectedBinary();
+    confirmPendingOperation();
 }
 
 function cancelBinaryPreview() {
-    // revert workspace to backup
-    if (previewBackupPattern && previewBackupPattern.pattern) {
-        currentPattern = previewBackupPattern.pattern;
-        renderPattern(currentPattern, 'workspace');
-    }
-    // clear preview state and pending op
-    clearBinaryPreview();
-    // keep workflow selections as they were (so user can reattempt)
+    resetPendingOperation();
 }
 
 // Inline preview panel: keep UI synchronized with current binary mode state
@@ -1230,129 +1473,140 @@ function updateInlinePreviewPanel() {
     const header = document.querySelector('#binaryPreviewPanel .binary-preview-header');
     const title = document.getElementById('binaryPreviewTitle');
     const body = document.getElementById('binaryPreviewBody');
+    const unaryBody = document.getElementById('unaryPreviewBody');
     const opLabel = document.getElementById('binaryInlineOpLabel');
     const aBox = document.getElementById('binaryOperandA');
     const bBox = document.getElementById('binaryOperandB');
+    const unaryOpLabel = document.getElementById('unaryInlineOpLabel');
+    const unaryOperandBox = document.getElementById('unaryOperandBox');
     const confirmBtn = document.getElementById('binaryConfirmBtn');
     const resetBtn = document.getElementById('binaryResetBtn');
     const placeholder = document.getElementById('binaryPreviewPlaceholder');
-    if (!panel || !title || !aBox || !bBox || !confirmBtn || !resetBtn) return;
+    if (!panel || !title || !confirmBtn || !resetBtn) return;
 
     const isBinaryMode = (pendingBinaryOp !== null);
-    // Panel is always visible per mock; use placeholder vs body
-    if (placeholder) placeholder.style.display = isBinaryMode ? 'none' : 'block';
+    const isUnaryMode = (pendingUnaryOp !== null);
+    const hasMode = isBinaryMode || isUnaryMode;
+
+    if (placeholder) {
+        if (hasMode) {
+            placeholder.style.display = 'none';
+        } else {
+            placeholder.style.display = 'block';
+            placeholder.textContent = 'Select an operation to get started';
+        }
+    }
+
     if (body) body.style.display = isBinaryMode ? 'flex' : 'none';
-    resetBtn.disabled = !isBinaryMode;
-    if (!isBinaryMode) {
-        aBox.innerHTML = '';
-        bBox.innerHTML = '';
-        confirmBtn.disabled = true;
-        opLabel && (opLabel.textContent = 'add(');
+    if (unaryBody) unaryBody.style.display = isUnaryMode ? 'flex' : 'none';
+
+    resetBtn.disabled = !hasMode;
+    confirmBtn.disabled = true;
+
+    if (!hasMode) {
+        if (aBox) aBox.innerHTML = '';
+        if (bBox) bBox.innerHTML = '';
+        if (unaryOperandBox) unaryOperandBox.innerHTML = '';
+        if (opLabel) opLabel.textContent = 'add(';
+        if (unaryOpLabel) unaryOpLabel.textContent = '';
         title.textContent = '';
         if (header) header.classList.add('is-hidden');
-    if (placeholder) placeholder.textContent = 'Select add, subtract, or union to get started';
+        setWorkspaceGlow(false);
         return;
     }
 
-    const { aSource, bSource } = resolveBinaryOperandSources();
+    if (isBinaryMode) {
+        const { aSource, bSource } = resolveBinaryOperandSources();
+        const opMessages = {
+            add: {
+                label: 'ADD',
+                hint: 'ADD – combine two patterns and keep all filled cells.'
+            },
+            subtract: {
+                label: 'SUBTRACT',
+                hint: 'SUBTRACT – choose a base pattern, then remove the second.'
+            },
+            union: {
+                label: 'UNION',
+                hint: 'UNION – keep only the overlapping cells from both patterns.'
+            }
+        };
+        const opConfig = opMessages[pendingBinaryOp] || opMessages.add;
+        title.textContent = opConfig.hint;
+        if (header) header.classList.toggle('is-hidden', !title.textContent.trim());
+        if (opLabel) opLabel.textContent = `${pendingBinaryOp}(`;
 
-    // Update title with current op and instructions
-    const opMessages = {
-        add: {
-            label: 'ADD',
-            hint: 'ADD – combine two patterns and keep all filled cells.'
-        },
-        subtract: {
-            label: 'SUBTRACT',
-            hint: 'SUBTRACT – choose a base pattern, then remove the second.'
-        },
-        union: {
-            label: 'UNION',
-            hint: 'UNION – keep only the overlapping cells from both patterns.'
+        if (aBox) {
+            aBox.innerHTML = '';
+            if (aSource && aSource.pattern) {
+                const svg = renderThumbnail(aSource.pattern, 4);
+                svg.style.width = '48px';
+                svg.style.height = '48px';
+                aBox.appendChild(svg);
+            }
         }
-    };
-    const opConfig = opMessages[pendingBinaryOp] || opMessages.add;
-    title.textContent = opConfig.hint;
-    if (header) header.classList.toggle('is-hidden', !title.textContent.trim());
-    if (opLabel) opLabel.textContent = `${pendingBinaryOp}(`;
 
-    // Fill operand A
-    aBox.innerHTML = '';
-    if (aSource && aSource.pattern) {
-        const svg = renderThumbnail(aSource.pattern, 4);
-        svg.style.width = '48px';
-        svg.style.height = '48px';
-        aBox.appendChild(svg);
-        aBox.onclick = () => {
-            if (aSource.type === 'primitive') {
-                if (aSource.origin === 'aPattern') inlinePreview.aPattern = null;
-                if (aSource.origin === 'bPattern') inlinePreview.bPattern = null;
-            } else if (typeof aSource.index === 'number') {
-                if (aSource.origin === 'aIndex') inlinePreview.aIndex = null;
-                if (aSource.origin === 'bIndex') inlinePreview.bIndex = null;
-                if (aSource.origin === 'selection') {
-                    if (inlinePreview.aIndex === aSource.index) inlinePreview.aIndex = null;
-                    if (inlinePreview.bIndex === aSource.index) inlinePreview.bIndex = null;
-                }
-                toggleWorkflowSelection(aSource.index);
+        if (bBox) {
+            bBox.innerHTML = '';
+            if (bSource && bSource.pattern) {
+                const svg = renderThumbnail(bSource.pattern, 4);
+                svg.style.width = '48px';
+                svg.style.height = '48px';
+                bBox.appendChild(svg);
             }
-            createBinaryPreview();
-        };
-    } else {
-        aBox.textContent = '';
-        aBox.onclick = null;
-    }
+        }
 
-    // Fill operand B
-    bBox.innerHTML = '';
-    if (bSource && bSource.pattern) {
-        const svg = renderThumbnail(bSource.pattern, 4);
-        svg.style.width = '48px';
-        svg.style.height = '48px';
-        bBox.appendChild(svg);
-        bBox.onclick = () => {
-            if (bSource.type === 'primitive') {
-                if (bSource.origin === 'aPattern') inlinePreview.aPattern = null;
-                if (bSource.origin === 'bPattern') inlinePreview.bPattern = null;
-            } else if (typeof bSource.index === 'number') {
-                if (bSource.origin === 'aIndex') inlinePreview.aIndex = null;
-                if (bSource.origin === 'bIndex') inlinePreview.bIndex = null;
-                if (bSource.origin === 'selection') {
-                    if (inlinePreview.aIndex === bSource.index) inlinePreview.aIndex = null;
-                    if (inlinePreview.bIndex === bSource.index) inlinePreview.bIndex = null;
-                }
-                toggleWorkflowSelection(bSource.index);
+        const resolvedAPattern = aSource ? aSource.pattern : null;
+        const resolvedBPattern = bSource ? bSource.pattern : null;
+        const canPreview = !!resolvedAPattern && !!resolvedBPattern && !!pendingBinaryOp;
+        const hasPreview = canPreview && !!previewPattern;
+        confirmBtn.disabled = !hasPreview;
+        setWorkspaceGlow(hasPreview);
+    } else if (isUnaryMode) {
+        const source = resolveUnaryOperandSource();
+        const unaryMessages = {
+            invert: {
+                label: 'INVERT',
+                hint: 'INVERT – flip filled and empty cells in the selected pattern.'
+            },
+            reflect_horizontal: {
+                label: 'FLIP H',
+                hint: 'FLIP H – reflect the pattern top ↔ bottom.'
+            },
+            reflect_vertical: {
+                label: 'FLIP V',
+                hint: 'FLIP V – reflect the pattern left ↔ right.'
+            },
+            reflect_diag: {
+                label: 'FLIP D',
+                hint: 'FLIP D – reflect the pattern across the diagonal.'
             }
-            createBinaryPreview();
         };
-    } else {
-        bBox.textContent = '';
-        bBox.onclick = null;
-    }
 
-    // If both operands are selected, compute and show a live preview in the workspace
-    const resolvedAPattern = aSource ? aSource.pattern : null;
-    const resolvedBPattern = bSource ? bSource.pattern : null;
-    const canPreview = !!resolvedAPattern && !!resolvedBPattern && !!pendingBinaryOp;
-    const hasPreview = canPreview && !!previewPattern;
-    confirmBtn.disabled = !hasPreview;
-    setWorkspaceGlow(hasPreview);
+        const config = unaryMessages[pendingUnaryOp] || { label: pendingUnaryOp, hint: 'Unary transform preview.' };
+        title.textContent = config.hint;
+        if (header) header.classList.toggle('is-hidden', !title.textContent.trim());
+        if (unaryOpLabel) unaryOpLabel.textContent = `${pendingUnaryOp}(`;
+
+        if (unaryOperandBox) {
+            unaryOperandBox.innerHTML = '';
+            if (source && source.pattern) {
+                const svg = renderThumbnail(source.pattern, 4);
+                svg.style.width = '48px';
+                svg.style.height = '48px';
+                unaryOperandBox.appendChild(svg);
+            }
+        }
+
+        const hasPreview = !!previewPattern && !!(source && source.pattern);
+        confirmBtn.disabled = !hasPreview;
+        setWorkspaceGlow(hasPreview);
+    }
 }
 
 // Reset just the current binary step: keep history, exit binary mode, and restore workspace snapshot
 function resetBinaryStep() {
-    if (previewBackupPattern && previewBackupPattern.pattern) {
-        currentPattern = previewBackupPattern.pattern;
-        renderPattern(currentPattern, 'workspace');
-    }
-    pendingBinaryOp = null;
-    workflowSelections = [];
-    previewPattern = null;
-    previewBackupPattern = null;
-    resetInlinePreviewState();
-    setWorkspaceGlow(false);
-    updateAllButtonStates();
-    updateInlinePreviewPanel();
+    resetPendingOperation();
 }
 
 function undoLast() {
@@ -1380,9 +1634,11 @@ function resetWorkspace() {
     operationsHistory = [];
     workflowSelections = [];
     pendingBinaryOp = null;
+    pendingUnaryOp = null;
     previewPattern = null;
     previewBackupPattern = null;
     resetInlinePreviewState();
+    resetUnaryPreviewState();
     setWorkspaceGlow(false);
     updateOperationsLog();
     renderWorkflow();
@@ -1506,6 +1762,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initializePrimitiveIcons();
     
     pendingBinaryOp = null;
+    pendingUnaryOp = null;
+    resetInlinePreviewState();
+    resetUnaryPreviewState();
     updateAllButtonStates();
     // double-click primitive = quick-fill temporary operand (does not write to Program)
     document.querySelectorAll('.primitive-btn[data-op]').forEach(btn => {
@@ -1524,15 +1783,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    document.querySelectorAll('.transform-btn, .primitive-btn').forEach(btn => {
+        if (!btn.getAttribute('data-original-title') && btn.title) {
+            btn.setAttribute('data-original-title', btn.title);
+        }
+    });
+
     // Keyboard shortcuts: Enter = Confirm preview, Esc = Cancel preview
     document.addEventListener('keydown', (e) => {
         if (!previewPattern) return; // only active during a preview
         if (e.key === 'Enter') {
             e.preventDefault();
-            confirmBinaryPreview();
+            confirmPendingOperation();
         } else if (e.key === 'Escape' || e.key === 'Esc') {
             e.preventDefault();
-            cancelBinaryPreview();
+            resetPendingOperation();
         }
     });
 

@@ -22,6 +22,10 @@
     --transition-base: 0.28s cubic-bezier(0.4, 0, 0.2, 1);
     --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
     --font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+    --layout-max-width: 1200px;
+    --layout-height: 780px;
+    --layout-columns: 320px 320px 560px;
+    --layout-rows: 340px 400px;
 }
 
 * {
@@ -155,12 +159,6 @@ button {
     justify-content: space-between;
     gap: 1.5rem;
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.3);
-    /* Keep the progress bar visible while scrolling on taller viewports */
-    position: sticky;
-    top: 0;
-    z-index: 1000;
-    height: var(--progress-height);
-    min-height: var(--progress-height);
 }
 
 .progress-info {
@@ -184,17 +182,24 @@ button {
     transition: width 0.3s ease;
 }
 
+#experimentContent {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.25rem;
+}
+
 .content-area {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.15fr);
-    grid-template-rows: 1fr 1fr;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
         "target workspace program"
         "controls preview program";
-    /* Use remaining viewport height after progress bar so page fits without body scroll */
-    height: calc(100vh - var(--progress-height));
-    padding: 0.8rem 1rem;
-    gap: 0.8rem;
+    height: calc(100vh - 90px);
+    padding: 1.25rem 1.5rem;
+    gap: 1.25rem;
     overflow: hidden;
     align-items: stretch;
 }
@@ -209,10 +214,6 @@ button {
     flex-direction: column;
     position: relative;
     min-height: 0;
-    /* Prevent panels from forcing horizontal overflow on narrow screens */
-    max-width: 100%;
-    /* Ensure panels can shrink and let their contents scroll internally when needed */
-    overflow: hidden;
 }
 
 .target-card { grid-area: target; }
@@ -256,9 +257,7 @@ button {
     background: var(--color-surface-soft);
     border-radius: var(--radius-md);
     border: 1px dashed var(--color-border);
-    padding: 0.5rem;
-    /* Reduce min-height so the whole page fits on a typical MacBook display */
-    min-height: 200px;
+    padding: 0.75rem;
 }
 
 .workspace-canvas svg,
@@ -296,9 +295,13 @@ button {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    gap: 0.75rem;
+    gap: 1.5rem;
     padding-bottom: 0.75rem;
     border-bottom: 1px solid var(--color-border);
+}
+
+.program-header h3 {
+    margin-right: auto;
 }
 
 .operations-log {

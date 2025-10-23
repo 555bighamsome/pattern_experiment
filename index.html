@@ -81,18 +81,18 @@
                         <button id="bin-union" data-op="union" class="transform-btn binary-btn" onclick="selectBinaryOp('union')" title="Union/AND two patterns">
                             <span class="btn-text">union</span>
                         </button>
-                        <button class="transform-btn unary-btn" onclick="applyTransform('invert')" title="Invert pattern (flip black/white)">
+                        <button class="transform-btn unary-btn" data-op="invert" onclick="applyTransform('invert')" title="Invert pattern (flip black/white)">
                             <span class="btn-text">invert</span>
                         </button>
-                        <button class="transform-btn unary-btn" onclick="applyTransform('reflect_horizontal')" title="Reflect horizontally - top ⟷ bottom">
+                        <button class="transform-btn unary-btn" data-op="reflect_horizontal" onclick="applyTransform('reflect_horizontal')" title="Reflect horizontally - top ⟷ bottom">
                             <span class="btn-arrow">⇵</span>
                             <span class="btn-text">flip_h</span>
                         </button>
-                        <button class="transform-btn unary-btn" onclick="applyTransform('reflect_vertical')" title="Reflect vertically - left ⟷ right">
+                        <button class="transform-btn unary-btn" data-op="reflect_vertical" onclick="applyTransform('reflect_vertical')" title="Reflect vertically - left ⟷ right">
                             <span class="btn-arrow">⇄</span>
                             <span class="btn-text">flip_v</span>
                         </button>
-                        <button class="transform-btn unary-btn" onclick="applyTransform('reflect_diag')" title="Reflect diagonally">
+                        <button class="transform-btn unary-btn" data-op="reflect_diag" onclick="applyTransform('reflect_diag')" title="Reflect diagonally">
                             <span class="btn-arrow">⤢</span>
                             <span class="btn-text">flip_d</span>
                         </button>
@@ -126,19 +126,24 @@
                 <div class="binary-preview-header is-hidden">
                     <div id="binaryPreviewTitle" class="binary-preview-title"></div>
                 </div>
-                <div id="binaryPreviewPlaceholder" class="binary-preview-placeholder">Select add, subtract, or union to get started</div>
+                <div id="binaryPreviewPlaceholder" class="binary-preview-placeholder">Select an operation to get started</div>
                 <div id="binaryPreviewBody" class="binary-preview-body" style="display:none;">
                     <div id="binaryInlineOpLabel" class="binary-inline-op">add(</div>
-                    <div id="binaryOperandA" class="operand-box" title="Click to remove"></div>
+                    <div id="binaryOperandA" class="operand-box"></div>
                     <div class="binary-inline-comma">,</div>
-                    <div id="binaryOperandB" class="operand-box" title="Click to remove"></div>
+                    <div id="binaryOperandB" class="operand-box"></div>
+                    <div class="binary-inline-close">)</div>
+                </div>
+                <div id="unaryPreviewBody" class="binary-preview-body unary-preview-body" style="display:none;">
+                    <div id="unaryInlineOpLabel" class="binary-inline-op">invert(</div>
+                    <div id="unaryOperandBox" class="operand-box"></div>
                     <div class="binary-inline-close">)</div>
                 </div>
                 <div class="binary-preview-footer">
-                    <button id="binaryConfirmBtn" class="btn btn-success binary-confirm-btn" onclick="confirmBinaryPreview()" disabled>
+                    <button id="binaryConfirmBtn" class="btn btn-success binary-confirm-btn" onclick="confirmPendingOperation()" disabled>
                         ✓ Confirm
                     </button>
-                    <button id="binaryResetBtn" class="btn btn-warning binary-cancel-btn" onclick="resetBinaryStep()" disabled>
+                    <button id="binaryResetBtn" class="btn btn-warning binary-cancel-btn" onclick="resetPendingOperation()" disabled>
                         ⟲ Reset
                     </button>
                 </div>
