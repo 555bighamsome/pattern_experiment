@@ -31,7 +31,9 @@
                 </label>
             </div>
             
-            <button class="start-btn" onclick="startExperiment()">Start Experiment</button>
+            <div style="display:flex; gap:0.8rem; flex-wrap:wrap;">
+                <button class="start-btn" onclick="startExperiment()">Start Experiment</button>
+            </div>
         </div>
     </div>
 
@@ -50,7 +52,7 @@
 
         <div class="content-area">
             <div class="panel-card target-card">
-                <h3 class="panel-title">Target Pattern <span id="targetNumber">1</span></h3>
+                <h3 class="panel-title"><span id="targetTitleLabel">Target Pattern</span> <span id="targetNumber">1</span></h3>
                 <div id="targetPattern" class="pattern-view"></div>
             </div>
             <div class="panel-card pattern-card">
@@ -60,15 +62,34 @@
             <div class="panel-card program-card">
                 <div class="program-header">
                     <h3>Your Program</h3>
-                    <button class="btn btn-success" onclick="submitAnswer()" title="Submit your answer and proceed to next pattern">
-                        <span style="font-size:1.1rem; margin-right:0.2rem;">✓</span> Submit
-                    </button>
+                    <div style="display:flex; gap:0.5rem; align-items:center;">
+                        <button id="openFavoritesBtn" class="btn btn-primary" onclick="toggleFavoritesBackpack()" title="Open Favorites (F)">
+                            <span style="font-size:1.1em;color:#f59e0b;vertical-align:middle;">★</span>
+                            <span>Favorites</span>
+                            <span id="favoritesCountBadge" class="favorites-count-badge" aria-label="favorites count" title="Favorites count" style="display:none;">0</span>
+                        </button>
+                        <button class="btn btn-success" onclick="submitAnswer()" title="Submit your answer and proceed to next pattern">
+                            <span style="font-size:1.1rem; margin-right:0.2rem;">✓</span> Submit
+                        </button>
+                    </div>
                 </div>
                 <div class="operations-log" id="operationsLog">
                     <span style="color: #9ca3af; font-size: 0.85rem;">Waiting for operations...</span>
                 </div>
             </div>
             <div class="panel-card controls-card">
+                        <!-- FAVORITES BACKPACK OVERLAY -->
+                        <div id="favoritesBackpackOverlay" class="backpack-overlay" style="display:none;">
+                            <div class="backpack-container" role="dialog" aria-modal="true" aria-labelledby="favoritesBackpackTitle">
+                                <div class="backpack-header">
+                                    <h3 id="favoritesBackpackTitle" class="panel-title">Favorites Backpack <span style="font-size:0.95em;color:#f59e0b;">★</span></h3>
+                                    <div class="backpack-actions">
+                                        <button id="favoritesBackpackClose" class="btn btn-warning" title="Close (Esc)">✕ Close</button>
+                                    </div>
+                                </div>
+                                <div id="favoritesBackpackList" class="backpack-list"></div>
+                            </div>
+                        </div>
                 <div class="controls-section operations-section">
                     <h4 class="panel-subtitle">Operations</h4>
                     <div class="operations-grid">
@@ -149,6 +170,8 @@
                 </div>
             </div>
         </div>
+
+        
 
         <!-- Feedback Modal for Submit Results -->
         <div class="feedback-modal" id="feedbackModal">

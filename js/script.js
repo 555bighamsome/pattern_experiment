@@ -1,3 +1,4 @@
+// (favorites popup legacy removed)
 const SIZE = 10;
 const CELL_SIZE = 40;
 let currentTestIndex = 0;
@@ -9,6 +10,282 @@ let pendingBinaryOp = null; // e.g. 'add', 'subtract', 'union'
 let pendingUnaryOp = null; // e.g. 'invert', 'reflect_horizontal'
 let previewPattern = null;
 let previewBackupPattern = null;
+// --- TUTORIAL STATE (removed) ---
+// Keep minimal stubs so the rest of the code can call without effects.
+let tutorialMode = false;
+let tutorialFlags = { loadedFromBackpack: false };
+function checkTutorialProgress() { /* no-op: tutorial removed */ }
+// --- END TUTORIAL STATE ---
+// --- FAVORITES SYSTEM (persist across trials) ---
+// Store snapshots, not indices, so favorites survive when operationsHistory resets between trials
+// favorites: Array<{ id: string, pattern: number[][], op?: string, meta?: { opFn?: string, operands?: { a?: number[][], b?: number[][], input?: number[][] } }, createdAt: number }>
+let favorites = [];
+
+function patternsEqual(a, b) {
+    if (!a || !b || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+        const ra = a[i], rb = b[i];
+        if (!ra || !rb || ra.length !== rb.length) return false;
+        for (let j = 0; j < ra.length; j++) {
+            if (ra[j] !== rb[j]) return false;
+        }
+    }
+    return true;
+}
+
+function isPatternFavorited(pattern) {
+    return favorites.some(f => patternsEqual(f.pattern, pattern));
+}
+
+function addFavoriteFromEntry(entry) {
+    if (!entry || !entry.pattern) return;
+    const pattern = entry.pattern;
+    if (isPatternFavorited(pattern)) return; // no duplicates
+    const id = `fav_${Date.now()}_${Math.floor(Math.random()*1000)}`;
+    const snapshot = {
+        id,
+        pattern: JSON.parse(JSON.stringify(pattern)),
+        op: entry.operation || '',
+        meta: {
+            opFn: entry.opFn || undefined,
+            operands: entry.operands ? {
+                a: entry.operands.a ? JSON.parse(JSON.stringify(entry.operands.a)) : undefined,
+                b: entry.operands.b ? JSON.parse(JSON.stringify(entry.operands.b)) : undefined,
+                input: entry.operands.input ? JSON.parse(JSON.stringify(entry.operands.input)) : undefined
+            } : undefined
+        },
+        createdAt: Date.now()
+    };
+    favorites.push(snapshot);
+}
+
+function removeFavoriteById(id) {
+    favorites = favorites.filter(f => f.id !== id);
+}
+
+function toggleFavoriteFromWorkflow(idx) {
+    const entry = operationsHistory[idx];
+    if (!entry || !entry.pattern) return;
+    if (isPatternFavorited(entry.pattern)) {
+        // remove the first matching favorite by pattern
+        const found = favorites.find(f => patternsEqual(f.pattern, entry.pattern));
+        if (found) removeFavoriteById(found.id);
+    } else {
+        addFavoriteFromEntry(entry);
+    }
+    renderWorkflow();
+    if (document.getElementById('favoritesBackpackOverlay')?.style.display !== 'none') {
+        renderFavoritesBackpack();
+    }
+    checkTutorialProgress();
+}
+
+function getFavoritePatterns() {
+    // return shallow copy to avoid external mutation
+    return favorites.slice();
+}
+
+// --- END FAVORITES SYSTEM ---
+// --- FAVORITES BACKPACK RENDERING & CONTROLS ---
+function renderFavoritesBackpack() {
+    const overlay = document.getElementById('favoritesBackpackOverlay');
+    const listEl = document.getElementById('favoritesBackpackList');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    const list = getFavoritePatterns();
+    updateFavoritesCountBadge(list.length);
+    if (list.length === 0) {
+        listEl.innerHTML = '<div style="color:#94a3b8;font-size:1rem;padding:0.6rem;">No favorites yet. Click the ＋ on a step to add.</div>';
+        return;
+    }
+    list.forEach(fav => {
+        const { id, pattern, op, meta } = fav;
+        const card = document.createElement('div');
+        card.className = 'backpack-card';
+        card.style.position = 'relative';
+        card.dataset.favId = id;
+
+        const thumb = renderThumbnail(pattern, 3);
+        const thumbWrap = document.createElement('div');
+        thumbWrap.className = 'backpack-card-thumb';
+        thumbWrap.appendChild(thumb);
+        card.appendChild(thumbWrap);
+
+        const metaWrap = document.createElement('div');
+        metaWrap.className = 'backpack-card-meta';
+        const title = document.createElement('div');
+        title.className = 'backpack-card-title';
+        title.textContent = meta?.opFn ? meta.opFn : (op || 'favorite');
+        metaWrap.appendChild(title);
+
+        // Expression tokens with tiny operand thumbnails
+        const expr = document.createElement('div');
+        expr.className = 'bp-expr';
+        if (meta && meta.opFn && (meta.operands || meta.opFn)) {
+            const fn = meta.opFn;
+            const open = document.createElement('span'); open.className = 'bp-op'; open.textContent = fn + '('; expr.appendChild(open);
+            if (fn === 'add' || fn === 'subtract' || fn === 'union') {
+                const aTok = document.createElement('span'); aTok.className = 'bp-thumb';
+                const aPat = meta.operands?.a || pattern;
+                const aSvg = renderThumbnail(aPat, 2.5); aSvg.style.width = '24px'; aSvg.style.height = '24px';
+                aTok.appendChild(aSvg); expr.appendChild(aTok);
+                const comma = document.createElement('span'); comma.className = 'bp-comma'; comma.textContent = ', '; expr.appendChild(comma);
+                const bTok = document.createElement('span'); bTok.className = 'bp-thumb';
+                const bPat = meta.operands?.b || pattern;
+                const bSvg = renderThumbnail(bPat, 2.5); bSvg.style.width = '24px'; bSvg.style.height = '24px';
+                bTok.appendChild(bSvg); expr.appendChild(bTok);
+            } else if (meta.operands?.input) {
+                const inTok = document.createElement('span'); inTok.className = 'bp-thumb';
+                const inSvg = renderThumbnail(meta.operands.input, 2.5); inSvg.style.width = '24px'; inSvg.style.height = '24px';
+                inTok.appendChild(inSvg); expr.appendChild(inTok);
+            }
+            const close = document.createElement('span'); close.className = 'bp-close'; close.textContent = ')'; expr.appendChild(close);
+        } else if (op) {
+            const text = document.createElement('span'); text.className = 'bp-op'; text.textContent = op; expr.appendChild(text);
+        }
+        metaWrap.appendChild(expr);
+        card.appendChild(metaWrap);
+
+        // Small remove (×) overlay button
+        const delBtn = document.createElement('button');
+        delBtn.className = 'fav-remove-btn';
+        delBtn.title = 'Remove from favorites';
+        delBtn.textContent = '×';
+        delBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            removeFavoriteById(id);
+            renderFavoritesBackpack();
+            renderWorkflow();
+        });
+        card.appendChild(delBtn);
+
+        // Mark selection role if this favorite currently fills an operand
+        const role = (() => {
+            if (pendingBinaryOp) {
+                const aMatch = inlinePreview.aPattern && patternsEqual(inlinePreview.aPattern, pattern);
+                const bMatch = inlinePreview.bPattern && patternsEqual(inlinePreview.bPattern, pattern);
+                if (aMatch) return 'a';
+                if (bMatch) return 'b';
+            } else if (pendingUnaryOp) {
+                const src = unaryPreviewState?.source;
+                if (src && src.pattern && patternsEqual(src.pattern, pattern)) return 'u';
+            }
+            return null;
+        })();
+
+        if (role) {
+            card.classList.add(role === 'a' ? 'selected-a' : (role === 'b' ? 'selected-b' : 'selected-u'));
+            const badge = document.createElement('div');
+            badge.className = 'bp-role ' + (role === 'a' ? 'bp-role-a' : role === 'b' ? 'bp-role-b' : 'bp-role-u');
+            badge.textContent = role === 'u' ? 'U' : role.toUpperCase();
+            badge.setAttribute('aria-label', role === 'u' ? 'Unary source selected' : (role === 'a' ? 'Operand A selected' : 'Operand B selected'));
+            card.appendChild(badge);
+        }
+
+        // clicking the card uses it
+        card.addEventListener('click', () => useFavoritePattern(id, pattern));
+        listEl.appendChild(card);
+    });
+}
+
+function useFavoritePattern(id, pattern) {
+    // brief use animation on the clicked card
+    try {
+        const card = document.querySelector(`.backpack-card[data-fav-id="${id}"]`);
+        if (card) {
+            card.classList.remove('backpack-card-used');
+            // trigger reflow to restart animation
+            void card.offsetWidth;
+            card.classList.add('backpack-card-used');
+            setTimeout(() => card && card.classList.remove('backpack-card-used'), 500);
+        }
+    } catch (e) {}
+    let filled = null;
+    if (pendingBinaryOp) {
+        const { aSource, bSource } = resolveBinaryOperandSources();
+        if (!aSource) {
+            inlinePreview.aPattern = pattern;
+            inlinePreview.aIndex = null;
+            filled = 'a';
+        } else if (!bSource) {
+            inlinePreview.bPattern = pattern;
+            inlinePreview.bIndex = null;
+            filled = 'b';
+        } else {
+            showToast('Both operands are already selected.', 'warning');
+            return;
+        }
+        createBinaryPreview();
+        renderWorkflow();
+        updateAllButtonStates();
+        // visual pulse on corresponding operand box and toast
+        if (filled) {
+            pulseOperandBox(filled);
+            showToast(`Filled operand ${filled.toUpperCase()} from Favorites`, 'info', 1600);
+        }
+        // refresh backpack to show A/B badge
+        renderFavoritesBackpack();
+    } else if (pendingUnaryOp) {
+        unaryPreviewState.source = {
+            type: 'favorite',
+            index: null,
+            pattern: pattern,
+            origin: 'favorite'
+        };
+        unaryModeJustEntered = false;
+        workflowSelections = [];
+        createUnaryPreview();
+        renderWorkflow();
+        updateAllButtonStates();
+        pulseOperandBox('u');
+        showToast('Filled unary input from Favorites', 'info', 1600);
+        renderFavoritesBackpack();
+    } else {
+        currentPattern = JSON.parse(JSON.stringify(pattern));
+        renderPattern(currentPattern, 'workspace');
+        showToast('Loaded pattern from Favorites', 'info', 1400);
+        if (tutorialMode) tutorialFlags.loadedFromBackpack = true;
+    }
+    checkTutorialProgress();
+}
+
+function pulseOperandBox(which) {
+    let el = null;
+    if (which === 'a') el = document.getElementById('binaryOperandA');
+    else if (which === 'b') el = document.getElementById('binaryOperandB');
+    else el = document.getElementById('unaryOperandBox');
+    if (!el) return;
+    const cls = which === 'a' ? 'operand-pulse-a' : which === 'b' ? 'operand-pulse-b' : 'operand-pulse-u';
+    el.classList.remove('operand-pulse-a', 'operand-pulse-b', 'operand-pulse-u');
+    void el.offsetWidth;
+    el.classList.add(cls);
+    setTimeout(() => el.classList.remove(cls), 700);
+}
+
+function updateFavoritesCountBadge(count) {
+    const badge = document.getElementById('favoritesCountBadge');
+    if (!badge) return;
+    if (count > 0) {
+        badge.textContent = String(count);
+        badge.style.display = 'inline-flex';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+function toggleFavoritesBackpack(force) {
+    const overlay = document.getElementById('favoritesBackpackOverlay');
+    if (!overlay) return;
+    const show = (force === true) || (force !== false && (overlay.style.display === 'none' || overlay.style.display === ''));
+    if (show) {
+        renderFavoritesBackpack();
+        overlay.style.display = 'flex';
+    } else {
+        overlay.style.display = 'none';
+    }
+    checkTutorialProgress();
+}
+// --- END FAVORITES BACKPACK RENDERING & CONTROLS ---
 function createInlinePreviewState() {
     return {
         op: null,
@@ -858,6 +1135,7 @@ function applyPrimitive(name) {
 
     renderWorkflow();
     updateAllButtonStates();
+    checkTutorialProgress();
 }
 
 function selectUnaryOp(name) {
@@ -894,6 +1172,7 @@ function selectUnaryOp(name) {
     renderWorkflow();
     updateAllButtonStates();
     updateInlinePreviewPanel();
+    checkTutorialProgress();
 }
 
 function applyTransform(name) {
@@ -923,6 +1202,7 @@ function addOperation(op) {
     updateOperationsLog();
     renderWorkflow();
     updateAllButtonStates();
+    checkTutorialProgress();
 }
 
 function updateOperationsLog() {
@@ -944,11 +1224,32 @@ function renderWorkflow() {
         const entry = document.createElement('div');
         entry.className = 'operation-thumb';
         if (workflowSelections.includes(idx)) entry.classList.add('selected');
-        
+
+        // --- FAVORITE UI: add-plus button (more visible) and favorited badge ---
+        if (!isPatternFavorited(item.pattern)) {
+            const favBtn = document.createElement('button');
+            favBtn.className = 'favorite-btn favorite-add-btn';
+            favBtn.title = 'Add to favorites';
+            favBtn.textContent = '+';
+            favBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleFavoriteFromWorkflow(idx);
+                checkTutorialProgress();
+            });
+            entry.appendChild(favBtn);
+        } else {
+            const badge = document.createElement('div');
+            badge.className = 'favorite-badge';
+            badge.title = 'Favorited';
+            badge.textContent = '★';
+            entry.appendChild(badge);
+        }
+        // --- END FAVORITE UI ---
+
         // Determine operation type and apply appropriate highlight
         const opText = item.operation || '';
         const isLastItem = (idx === operationsHistory.length - 1);
-        
+
         if (isLastItem) {
             // Different colors for different operation types
             if (opText.match(/^(add|subtract|union)\(/)) {
@@ -962,7 +1263,7 @@ function renderWorkflow() {
                 entry.classList.add('newly-added-transform');
             }
         }
-        
+
         entry.onclick = () => onWorkflowClick(idx);
 
         // If operation is in function format like 'add(selected)' or 'add(W1,W2)'
@@ -1125,6 +1426,12 @@ function renderWorkflow() {
     updateAllButtonStates();
     // also refresh inline preview UI state
     updateInlinePreviewPanel();
+    // update favorites backpack & count
+    if (document.getElementById('favoritesBackpackOverlay')?.style.display !== 'none') {
+        renderFavoritesBackpack();
+    }
+    updateFavoritesCountBadge(favorites.length);
+    checkTutorialProgress();
 }
 
 function onWorkflowClick(idx) {
@@ -1223,6 +1530,7 @@ function selectBinaryOp(op) {
     renderWorkflow();
     updateAllButtonStates();
     updateInlinePreviewPanel();
+    checkTutorialProgress();
 }
 
 // Unified button state management for intuitive interaction
@@ -1333,6 +1641,7 @@ function applySelectedBinary() {
     // clear preview state and exit binary mode
     clearBinaryPreview();
     renderWorkflow();
+    checkTutorialProgress();
 }
 
 function createBinaryPreview() {
@@ -1530,6 +1839,7 @@ function applySelectedUnary() {
     workflowSelections = [];
     clearUnaryPreview();
     renderWorkflow();
+    checkTutorialProgress();
 }
 
 function confirmPendingOperation() {
@@ -1925,4 +2235,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize inline preview panel to placeholder state
     updateInlinePreviewPanel();
+    // Initialize favorites badge
+    updateFavoritesCountBadge(favorites.length);
+    // Shortcut: F to toggle favorites popup
+    document.addEventListener('keydown', (e) => {
+        // ignore if typing into an input
+        const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+        if (tag === 'input' || tag === 'textarea' || e.metaKey || e.ctrlKey || e.altKey) return;
+        if (e.key === 'f' || e.key === 'F') {
+            e.preventDefault();
+            toggleFavoritesBackpack();
+        }
+        if (e.key === 'Escape' || e.key === 'Esc') {
+            // close backpack if open
+            const overlay = document.getElementById('favoritesBackpackOverlay');
+            if (overlay && overlay.style.display !== 'none') {
+                e.preventDefault();
+                toggleFavoritesBackpack(false);
+            }
+        }
+    });
+    // Close backpack by clicking backdrop or Close button
+    const overlay = document.getElementById('favoritesBackpackOverlay');
+    if (overlay) {
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) toggleFavoritesBackpack(false);
+        });
+    }
+    const closeBtn = document.getElementById('favoritesBackpackClose');
+    if (closeBtn) closeBtn.addEventListener('click', () => toggleFavoritesBackpack(false));
 });
