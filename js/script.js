@@ -10,6 +10,39 @@ let pendingBinaryOp = null; // e.g. 'add', 'subtract', 'union'
 let pendingUnaryOp = null; // e.g. 'invert', 'reflect_horizontal'
 let previewPattern = null;
 let previewBackupPattern = null;
+const POINTS_MAX = 100;
+let pointsPerCorrect = 0;
+let totalPoints = 0;
+
+function updatePointsDisplay() {
+    const el = document.getElementById('pointsValue');
+    if (el) {
+        const rounded = Math.round(totalPoints);
+        el.textContent = String(rounded);
+    }
+    const maxEl = document.getElementById('pointsMaxValue');
+    if (maxEl) {
+        maxEl.textContent = String(POINTS_MAX);
+    }
+}
+
+function formatPoints(value) {
+    return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '');
+}
+
+function showCompletionModal() {
+    const modal = document.getElementById('completionModal');
+    if (!modal) return;
+    const pointsEl = document.getElementById('finalPointsValue');
+    if (pointsEl) {
+        pointsEl.textContent = String(Math.round(totalPoints));
+    }
+    const maxEl = document.getElementById('finalPointsMax');
+    if (maxEl) {
+        maxEl.textContent = String(POINTS_MAX);
+    }
+    modal.style.display = 'flex';
+}
 // --- TUTORIAL STATE (removed) ---
 // Keep minimal stubs so the rest of the code can call without effects.
 let tutorialMode = false;
@@ -74,9 +107,6 @@ function toggleFavoriteFromWorkflow(idx) {
         addFavoriteFromEntry(entry);
     }
     renderWorkflow();
-    if (document.getElementById('favoritesBackpackOverlay')?.style.display !== 'none') {
-        renderFavoritesBackpack();
-    }
     checkTutorialProgress();
 }
 
@@ -86,80 +116,25 @@ function getFavoritePatterns() {
 }
 
 // --- END FAVORITES SYSTEM ---
-// --- FAVORITES BACKPACK RENDERING & CONTROLS ---
-function renderFavoritesBackpack() {
-    const overlay = document.getElementById('favoritesBackpackOverlay');
-    const listEl = document.getElementById('favoritesBackpackList');
-    if (!listEl) return;
-    listEl.innerHTML = '';
+// --- FAVORITES SHELF RENDERING & CONTROLS ---
+function renderFavoritesShelf() {
+    const shelf = document.getElementById('favoritesShelf');
+    if (!shelf) return;
+    shelf.innerHTML = '';
     const list = getFavoritePatterns();
-    updateFavoritesCountBadge(list.length);
     if (list.length === 0) {
-        listEl.innerHTML = '<div style="color:#94a3b8;font-size:1rem;padding:0.6rem;">No favorites yet. Click the ＋ on a step to add.</div>';
+        shelf.innerHTML = '<div class="helpers-empty">Favorite a step to reuse it here.</div>';
         return;
     }
+
     list.forEach(fav => {
         const { id, pattern, op, meta } = fav;
         const card = document.createElement('div');
-        card.className = 'backpack-card';
-        card.style.position = 'relative';
+        card.className = 'helper-card';
         card.dataset.favId = id;
+        card.setAttribute('role', 'button');
+        card.tabIndex = 0;
 
-        const thumb = renderThumbnail(pattern, 3);
-        const thumbWrap = document.createElement('div');
-        thumbWrap.className = 'backpack-card-thumb';
-        thumbWrap.appendChild(thumb);
-        card.appendChild(thumbWrap);
-
-        const metaWrap = document.createElement('div');
-        metaWrap.className = 'backpack-card-meta';
-        const title = document.createElement('div');
-        title.className = 'backpack-card-title';
-        title.textContent = meta?.opFn ? meta.opFn : (op || 'favorite');
-        metaWrap.appendChild(title);
-
-        // Expression tokens with tiny operand thumbnails
-        const expr = document.createElement('div');
-        expr.className = 'bp-expr';
-        if (meta && meta.opFn && (meta.operands || meta.opFn)) {
-            const fn = meta.opFn;
-            const open = document.createElement('span'); open.className = 'bp-op'; open.textContent = fn + '('; expr.appendChild(open);
-            if (fn === 'add' || fn === 'subtract' || fn === 'union') {
-                const aTok = document.createElement('span'); aTok.className = 'bp-thumb';
-                const aPat = meta.operands?.a || pattern;
-                const aSvg = renderThumbnail(aPat, 2.5); aSvg.style.width = '24px'; aSvg.style.height = '24px';
-                aTok.appendChild(aSvg); expr.appendChild(aTok);
-                const comma = document.createElement('span'); comma.className = 'bp-comma'; comma.textContent = ', '; expr.appendChild(comma);
-                const bTok = document.createElement('span'); bTok.className = 'bp-thumb';
-                const bPat = meta.operands?.b || pattern;
-                const bSvg = renderThumbnail(bPat, 2.5); bSvg.style.width = '24px'; bSvg.style.height = '24px';
-                bTok.appendChild(bSvg); expr.appendChild(bTok);
-            } else if (meta.operands?.input) {
-                const inTok = document.createElement('span'); inTok.className = 'bp-thumb';
-                const inSvg = renderThumbnail(meta.operands.input, 2.5); inSvg.style.width = '24px'; inSvg.style.height = '24px';
-                inTok.appendChild(inSvg); expr.appendChild(inTok);
-            }
-            const close = document.createElement('span'); close.className = 'bp-close'; close.textContent = ')'; expr.appendChild(close);
-        } else if (op) {
-            const text = document.createElement('span'); text.className = 'bp-op'; text.textContent = op; expr.appendChild(text);
-        }
-        metaWrap.appendChild(expr);
-        card.appendChild(metaWrap);
-
-        // Small remove (×) overlay button
-        const delBtn = document.createElement('button');
-        delBtn.className = 'fav-remove-btn';
-        delBtn.title = 'Remove from favorites';
-        delBtn.textContent = '×';
-        delBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            removeFavoriteById(id);
-            renderFavoritesBackpack();
-            renderWorkflow();
-        });
-        card.appendChild(delBtn);
-
-        // Mark selection role if this favorite currently fills an operand
         const role = (() => {
             if (pendingBinaryOp) {
                 const aMatch = inlinePreview.aPattern && patternsEqual(inlinePreview.aPattern, pattern);
@@ -173,31 +148,59 @@ function renderFavoritesBackpack() {
             return null;
         })();
 
+        if (role === 'a') card.classList.add('helper-selected-a');
+        if (role === 'b') card.classList.add('helper-selected-b');
+        if (role === 'u') card.classList.add('helper-selected-u');
+
         if (role) {
-            card.classList.add(role === 'a' ? 'selected-a' : (role === 'b' ? 'selected-b' : 'selected-u'));
             const badge = document.createElement('div');
-            badge.className = 'bp-role ' + (role === 'a' ? 'bp-role-a' : role === 'b' ? 'bp-role-b' : 'bp-role-u');
+            badge.className = 'helper-role-badge';
             badge.textContent = role === 'u' ? 'U' : role.toUpperCase();
             badge.setAttribute('aria-label', role === 'u' ? 'Unary source selected' : (role === 'a' ? 'Operand A selected' : 'Operand B selected'));
             card.appendChild(badge);
         }
 
-        // clicking the card uses it
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'helper-remove';
+        removeBtn.title = 'Remove from favorites';
+        removeBtn.textContent = '×';
+        removeBtn.type = 'button';
+        removeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            removeFavoriteById(id);
+            renderWorkflow();
+        });
+        card.appendChild(removeBtn);
+
+    const thumbWrap = document.createElement('div');
+    thumbWrap.className = 'helper-thumb';
+    const thumb = renderThumbnail(pattern, 3.8);
+    thumbWrap.appendChild(thumb);
+    card.appendChild(thumbWrap);
+
+    const labelText = meta?.opFn ? meta.opFn : (op || 'favorite');
+    card.title = `Use ${labelText} from favorites`;
+
         card.addEventListener('click', () => useFavoritePattern(id, pattern));
-        listEl.appendChild(card);
+        card.addEventListener('keydown', (evt) => {
+            if (evt.key === 'Enter' || evt.key === ' ') {
+                evt.preventDefault();
+                useFavoritePattern(id, pattern);
+            }
+        });
+        shelf.appendChild(card);
     });
 }
 
 function useFavoritePattern(id, pattern) {
     // brief use animation on the clicked card
     try {
-        const card = document.querySelector(`.backpack-card[data-fav-id="${id}"]`);
+        const card = document.querySelector(`.helper-card[data-fav-id="${id}"]`);
         if (card) {
-            card.classList.remove('backpack-card-used');
-            // trigger reflow to restart animation
+            card.classList.remove('helper-card-used');
             void card.offsetWidth;
-            card.classList.add('backpack-card-used');
-            setTimeout(() => card && card.classList.remove('backpack-card-used'), 500);
+            card.classList.add('helper-card-used');
+            setTimeout(() => card && card.classList.remove('helper-card-used'), 500);
         }
     } catch (e) {}
     let filled = null;
@@ -223,8 +226,7 @@ function useFavoritePattern(id, pattern) {
             pulseOperandBox(filled);
             showToast(`Filled operand ${filled.toUpperCase()} from Favorites`, 'info', 1600);
         }
-        // refresh backpack to show A/B badge
-        renderFavoritesBackpack();
+        renderFavoritesShelf();
     } else if (pendingUnaryOp) {
         unaryPreviewState.source = {
             type: 'favorite',
@@ -239,14 +241,14 @@ function useFavoritePattern(id, pattern) {
         updateAllButtonStates();
         pulseOperandBox('u');
         showToast('Filled unary input from Favorites', 'info', 1600);
-        renderFavoritesBackpack();
+        renderFavoritesShelf();
     } else {
-        currentPattern = JSON.parse(JSON.stringify(pattern));
-        renderPattern(currentPattern, 'workspace');
-        showToast('Loaded pattern from Favorites', 'info', 1400);
-        if (tutorialMode) tutorialFlags.loadedFromBackpack = true;
+        showToast('⚠️ Please select an operation (binary or unary) before using a helper.', 'warning');
     }
     checkTutorialProgress();
+    if (!pendingBinaryOp && !pendingUnaryOp) {
+        renderFavoritesShelf();
+    }
 }
 
 function pulseOperandBox(which) {
@@ -262,30 +264,7 @@ function pulseOperandBox(which) {
     setTimeout(() => el.classList.remove(cls), 700);
 }
 
-function updateFavoritesCountBadge(count) {
-    const badge = document.getElementById('favoritesCountBadge');
-    if (!badge) return;
-    if (count > 0) {
-        badge.textContent = String(count);
-        badge.style.display = 'inline-flex';
-    } else {
-        badge.style.display = 'none';
-    }
-}
-
-function toggleFavoritesBackpack(force) {
-    const overlay = document.getElementById('favoritesBackpackOverlay');
-    if (!overlay) return;
-    const show = (force === true) || (force !== false && (overlay.style.display === 'none' || overlay.style.display === ''));
-    if (show) {
-        renderFavoritesBackpack();
-        overlay.style.display = 'flex';
-    } else {
-        overlay.style.display = 'none';
-    }
-    checkTutorialProgress();
-}
-// --- END FAVORITES BACKPACK RENDERING & CONTROLS ---
+// --- END FAVORITES SHELF RENDERING & CONTROLS ---
 function createInlinePreviewState() {
     return {
         op: null,
@@ -727,6 +706,7 @@ function shuffleArray(array) {
 }
 
 function startExperiment() {
+    allTrialsData = [];
     shouldRandomize = document.getElementById('randomizeOrder').checked;
     
     testOrder = Array.from({length: testCases.length}, (_, i) => i);
@@ -736,11 +716,18 @@ function startExperiment() {
     
     document.getElementById('welcomeScreen').style.display = 'none';
     document.getElementById('experimentContent').classList.remove('hidden');
+
+    const totalTrials = testOrder.length;
+    pointsPerCorrect = totalTrials > 0 ? POINTS_MAX / totalTrials : POINTS_MAX;
+    totalPoints = 0;
+    updatePointsDisplay();
     
     allTrialsData.push({
         metadata: {
             randomized: shouldRandomize,
-            order: testOrder
+            order: testOrder,
+            pointsMax: POINTS_MAX,
+            pointsPerCorrect
         }
     });
     
@@ -1054,6 +1041,8 @@ function loadTrial(index) {
         success: null,
         skipped: false,
         submitted: false,
+        pointsEarned: 0,
+        pointsAwarded: 0,
         startedAt: trialStartTime
     };
     allTrialsData.push(currentTrialRecord);
@@ -1426,11 +1415,7 @@ function renderWorkflow() {
     updateAllButtonStates();
     // also refresh inline preview UI state
     updateInlinePreviewPanel();
-    // update favorites backpack & count
-    if (document.getElementById('favoritesBackpackOverlay')?.style.display !== 'none') {
-        renderFavoritesBackpack();
-    }
-    updateFavoritesCountBadge(favorites.length);
+    renderFavoritesShelf();
     checkTutorialProgress();
 }
 
@@ -2084,46 +2069,80 @@ function submitAnswer() {
         showToast('Please create a pattern first', 'warning');
         return;
     }
-    
+
     const match = JSON.stringify(currentPattern) === JSON.stringify(targetPattern);
-    
+    const previouslySuccessful = currentTrialRecord?.success === true;
+
+    const modal = document.getElementById('feedbackModal');
+    const icon = document.getElementById('feedbackIcon');
+    const message = document.getElementById('feedbackMessage');
+
+    let pointsAwardedThisSubmission = 0;
+    const eligibleForPoints = match && !previouslySuccessful;
+    if (eligibleForPoints) {
+        const available = Math.max(0, POINTS_MAX - totalPoints);
+        pointsAwardedThisSubmission = Math.min(pointsPerCorrect, available);
+        if (pointsAwardedThisSubmission > 0) {
+            totalPoints += pointsAwardedThisSubmission;
+            updatePointsDisplay();
+        }
+    }
+
     // Record trial data
     if (currentTrialRecord) {
+        const previousPointsEarned = currentTrialRecord.pointsEarned || 0;
         currentTrialRecord.operations = operationsHistory.map(h => h.operation);
         currentTrialRecord.stepsCount = operationsHistory.length;
         currentTrialRecord.timeSpent = Date.now() - trialStartTime;
         currentTrialRecord.success = match;
         currentTrialRecord.submitted = true;
+        const trialEarned = match ? Math.max(previousPointsEarned, pointsAwardedThisSubmission) : previousPointsEarned;
+        currentTrialRecord.pointsEarned = trialEarned;
+        currentTrialRecord.pointsAwarded = pointsAwardedThisSubmission;
+        currentTrialRecord.totalPointsAfter = Math.round(totalPoints);
     }
-    
+
     // Show centered modal feedback
-    const modal = document.getElementById('feedbackModal');
-    const icon = document.getElementById('feedbackIcon');
-    const message = document.getElementById('feedbackMessage');
-    
-    if (match) {
-        icon.textContent = '✓';
-        icon.className = 'feedback-icon success';
-        message.textContent = `Correct! Pattern matches.\nUsed ${operationsHistory.length} operations.`;
-    } else {
-        icon.textContent = '✗';
-        icon.className = 'feedback-icon error';
-        message.textContent = 'Not quite right.\nPattern does not match.';
-    }
-    
-    modal.classList.add('show');
-    
-    // Auto-advance to next trial after showing message
-    setTimeout(() => {
-        modal.classList.remove('show');
-        if (currentTestIndex < getTotalTrials() - 1) {
-            const nextIndex = currentTestIndex + 1;
-            resetWorkspace();
-            loadTrial(nextIndex);
+    if (modal && icon && message) {
+        const totalDisplay = formatPoints(Math.round(totalPoints));
+        if (match) {
+            icon.textContent = '✓';
+            icon.className = 'feedback-icon success';
+            const lines = [];
+            if (pointsAwardedThisSubmission > 0) {
+                lines.push(`Correct! +${formatPoints(pointsAwardedThisSubmission)} points.`);
+            } else if (previouslySuccessful) {
+                lines.push('Correct! Points were already awarded for this trial.');
+            } else {
+                lines.push('Correct!');
+            }
+            lines.push(`Used ${operationsHistory.length} operations.`);
+            lines.push(`Total ${totalDisplay}/${POINTS_MAX}.`);
+            message.textContent = lines.join('\n');
         } else {
-            document.getElementById('completionModal').style.display = 'flex';
+            icon.textContent = '✗';
+            icon.className = 'feedback-icon error';
+            const lines = [
+                'Not quite right. 0 points this round.',
+                `Used ${operationsHistory.length} operations.`,
+                `Total ${totalDisplay}/${POINTS_MAX}.`
+            ];
+            message.textContent = lines.join('\n');
         }
-    }, 2000); // 2 seconds to read the message
+
+        modal.classList.add('show');
+
+        setTimeout(() => {
+            modal.classList.remove('show');
+            if (currentTestIndex < getTotalTrials() - 1) {
+                const nextIndex = currentTestIndex + 1;
+                resetWorkspace();
+                loadTrial(nextIndex);
+            } else {
+                showCompletionModal();
+            }
+        }, 2000);
+    }
 }
 
 function skipTrial() {
@@ -2135,6 +2154,9 @@ function skipTrial() {
             currentTrialRecord.timeSpent = Date.now() - trialStartTime;
             currentTrialRecord.success = false;
             currentTrialRecord.skipped = true;
+            currentTrialRecord.pointsEarned = 0;
+            currentTrialRecord.pointsAwarded = 0;
+            currentTrialRecord.totalPointsAfter = Math.round(totalPoints);
         } else {
             // fallback: push a minimal record
             allTrialsData.push({
@@ -2145,7 +2167,10 @@ function skipTrial() {
                 steps: operationsHistory.length,
                 timeSpent: Date.now() - trialStartTime,
                 success: false,
-                skipped: true
+                skipped: true,
+                pointsEarned: 0,
+                pointsAwarded: 0,
+                totalPointsAfter: Math.round(totalPoints)
             });
         }
         
@@ -2154,7 +2179,7 @@ function skipTrial() {
             resetWorkspace();
             loadTrial(nextIndex);
         } else {
-            document.getElementById('completionModal').style.display = 'flex';
+            showCompletionModal();
         }
     }
 }
@@ -2166,7 +2191,7 @@ function nextTrial() {
         resetWorkspace();
         loadTrial(currentTestIndex);
     } else {
-        document.getElementById('completionModal').style.display = 'flex';
+        showCompletionModal();
     }
 }
 
@@ -2177,6 +2202,9 @@ function downloadResults() {
         totalTrials: 18,
         completedTrials: completedCount,
         randomized: shouldRandomize,
+        pointsPerCorrect,
+        pointsMax: POINTS_MAX,
+        totalPointsEarned: totalPoints,
         trials: allTrialsData
     };
     
@@ -2236,32 +2264,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize inline preview panel to placeholder state
     updateInlinePreviewPanel();
     // Initialize favorites badge
-    updateFavoritesCountBadge(favorites.length);
-    // Shortcut: F to toggle favorites popup
-    document.addEventListener('keydown', (e) => {
-        // ignore if typing into an input
-        const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
-        if (tag === 'input' || tag === 'textarea' || e.metaKey || e.ctrlKey || e.altKey) return;
-        if (e.key === 'f' || e.key === 'F') {
-            e.preventDefault();
-            toggleFavoritesBackpack();
-        }
-        if (e.key === 'Escape' || e.key === 'Esc') {
-            // close backpack if open
-            const overlay = document.getElementById('favoritesBackpackOverlay');
-            if (overlay && overlay.style.display !== 'none') {
-                e.preventDefault();
-                toggleFavoritesBackpack(false);
-            }
-        }
-    });
-    // Close backpack by clicking backdrop or Close button
-    const overlay = document.getElementById('favoritesBackpackOverlay');
-    if (overlay) {
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) toggleFavoritesBackpack(false);
-        });
-    }
-    const closeBtn = document.getElementById('favoritesBackpackClose');
-    if (closeBtn) closeBtn.addEventListener('click', () => toggleFavoritesBackpack(false));
+    renderFavoritesShelf();
+    updatePointsDisplay();
 });
