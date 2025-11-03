@@ -110,6 +110,27 @@ function toggleFavoriteFromWorkflow(idx) {
     checkTutorialProgress();
 }
 
+// Helpers header '+' action: favorite the latest step if available
+function addLastToFavorites() {
+    if (!operationsHistory || operationsHistory.length === 0) {
+        showToast('No steps yet. Perform an operation first.', 'warning');
+        return;
+    }
+    const idx = operationsHistory.length - 1;
+    const entry = operationsHistory[idx];
+    if (!entry || !entry.pattern) {
+        showToast('Nothing to favorite.', 'warning');
+        return;
+    }
+    if (isPatternFavorited(entry.pattern)) {
+        showToast('Already in favorites.', 'info');
+        return;
+    }
+    addFavoriteFromEntry(entry);
+    renderFavoritesShelf();
+    showToast('Added latest step to helpers.', 'info');
+}
+
 function getFavoritePatterns() {
     // return shallow copy to avoid external mutation
     return favorites.slice();
@@ -127,82 +148,30 @@ function renderFavoritesShelf() {
         return;
     }
 
+    // Render favorites as minimalist primitive-style buttons
     list.forEach(fav => {
-        const { id, pattern, op, meta } = fav;
-        const card = document.createElement('div');
-        card.className = 'helper-card';
-        card.dataset.favId = id;
-        card.setAttribute('role', 'button');
-        card.tabIndex = 0;
-
-        const role = (() => {
-            if (pendingBinaryOp) {
-                const aMatch = inlinePreview.aPattern && patternsEqual(inlinePreview.aPattern, pattern);
-                const bMatch = inlinePreview.bPattern && patternsEqual(inlinePreview.bPattern, pattern);
-                if (aMatch) return 'a';
-                if (bMatch) return 'b';
-            } else if (pendingUnaryOp) {
-                const src = unaryPreviewState?.source;
-                if (src && src.pattern && patternsEqual(src.pattern, pattern)) return 'u';
-            }
-            return null;
-        })();
-
-        if (role === 'a') card.classList.add('helper-selected-a');
-        if (role === 'b') card.classList.add('helper-selected-b');
-        if (role === 'u') card.classList.add('helper-selected-u');
-
-        if (role) {
-            const badge = document.createElement('div');
-            badge.className = 'helper-role-badge';
-            badge.textContent = role === 'u' ? 'U' : role.toUpperCase();
-            badge.setAttribute('aria-label', role === 'u' ? 'Unary source selected' : (role === 'a' ? 'Operand A selected' : 'Operand B selected'));
-            card.appendChild(badge);
-        }
-
-        const removeBtn = document.createElement('button');
-        removeBtn.className = 'helper-remove';
-        removeBtn.title = 'Remove from favorites';
-        removeBtn.textContent = '×';
-        removeBtn.type = 'button';
-        removeBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            removeFavoriteById(id);
-            renderWorkflow();
-        });
-        card.appendChild(removeBtn);
-
-    const thumbWrap = document.createElement('div');
-    thumbWrap.className = 'helper-thumb';
-    const thumb = renderThumbnail(pattern, 3.8);
-    thumbWrap.appendChild(thumb);
-    card.appendChild(thumbWrap);
-
-    const labelText = meta?.opFn ? meta.opFn : (op || 'favorite');
-    card.title = `Use ${labelText} from favorites`;
-
-        card.addEventListener('click', () => useFavoritePattern(id, pattern));
-        card.addEventListener('keydown', (evt) => {
+        const { id, pattern } = fav;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'primitive-btn helper-primitive';
+        btn.title = 'Use from helpers';
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'btn-icon';
+        const icon = renderThumbnail(pattern, 3.5);
+        iconSpan.appendChild(icon);
+        btn.appendChild(iconSpan);
+        btn.addEventListener('click', () => useFavoritePattern(id, pattern));
+        btn.addEventListener('keydown', (evt) => {
             if (evt.key === 'Enter' || evt.key === ' ') {
                 evt.preventDefault();
                 useFavoritePattern(id, pattern);
             }
         });
-        shelf.appendChild(card);
+        shelf.appendChild(btn);
     });
 }
 
 function useFavoritePattern(id, pattern) {
-    // brief use animation on the clicked card
-    try {
-        const card = document.querySelector(`.helper-card[data-fav-id="${id}"]`);
-        if (card) {
-            card.classList.remove('helper-card-used');
-            void card.offsetWidth;
-            card.classList.add('helper-card-used');
-            setTimeout(() => card && card.classList.remove('helper-card-used'), 500);
-        }
-    } catch (e) {}
     let filled = null;
     if (pendingBinaryOp) {
         const { aSource, bSource } = resolveBinaryOperandSources();
@@ -982,7 +951,7 @@ function renderPrimitiveIcon(pattern, scale = 3.5) {
                 rect.setAttribute('y', i * scale);
                 rect.setAttribute('width', scale);
                 rect.setAttribute('height', scale);
-                rect.setAttribute('fill', '#3b82f6');
+                rect.setAttribute('fill', '#08306B');
                 svg.appendChild(rect);
             }
         });
@@ -1263,10 +1232,9 @@ function renderWorkflow() {
             // 表达式渲染：结果缩略图 + 灰底表达式 token（op( A , B )）
             const fn = binaryMatch[1];
             const svgWrap = document.createElement('div');
-            svgWrap.className = 'thumb-svg';
+            // Use preview-style operand box for result thumbnail
+            svgWrap.className = 'operand-box program-result';
             const resultSvg = renderThumbnail(item.pattern, 4);
-            resultSvg.style.width = '48px';
-            resultSvg.style.height = '48px';
             svgWrap.appendChild(resultSvg);
             svgWrap.addEventListener('click', (e) => {
                 if (pendingBinaryOp) {
@@ -1284,12 +1252,10 @@ function renderWorkflow() {
             opTok.className = 'program-expr-op';
             opTok.textContent = fn + '(';
             expr.appendChild(opTok);
-            // A operand thumb
-            const aTok = document.createElement('span');
-            aTok.className = 'program-expr-thumb';
+            // A operand thumb (reuse preview operand-box style)
+            const aTok = document.createElement('div');
+            aTok.className = 'operand-box program-operand';
             const aSvg = renderThumbnail(item.operands?.a || item.pattern, 3.5);
-            aSvg.style.width = '36px';
-            aSvg.style.height = '36px';
             aTok.appendChild(aSvg);
             expr.appendChild(aTok);
             const comma = document.createElement('span');
@@ -1297,11 +1263,9 @@ function renderWorkflow() {
             comma.textContent = ', ';
             expr.appendChild(comma);
             // B operand thumb
-            const bTok = document.createElement('span');
-            bTok.className = 'program-expr-thumb';
+            const bTok = document.createElement('div');
+            bTok.className = 'operand-box program-operand';
             const bSvg = renderThumbnail(item.operands?.b || item.pattern, 3.5);
-            bSvg.style.width = '36px';
-            bSvg.style.height = '36px';
             bTok.appendChild(bSvg);
             expr.appendChild(bTok);
             const closeTok = document.createElement('span');
@@ -1318,10 +1282,8 @@ function renderWorkflow() {
             entry.appendChild(expr);
         } else if (isUnary) {
             const svgWrap = document.createElement('div');
-            svgWrap.className = 'thumb-svg';
+            svgWrap.className = 'operand-box program-result';
             const resultSvg = renderThumbnail(item.pattern, 4);
-            resultSvg.style.width = '48px';
-            resultSvg.style.height = '48px';
             svgWrap.appendChild(resultSvg);
             svgWrap.addEventListener('click', (e) => {
                 if (pendingBinaryOp) return;
@@ -1337,12 +1299,10 @@ function renderWorkflow() {
             opTok.textContent = item.opFn + '(';
             expr.appendChild(opTok);
 
-            const operandTok = document.createElement('span');
-            operandTok.className = 'program-expr-thumb';
+            const operandTok = document.createElement('div');
+            operandTok.className = 'operand-box program-operand';
             const operandPattern = item.operands?.input || item.pattern;
             const operandSvg = renderThumbnail(operandPattern, 3.5);
-            operandSvg.style.width = '36px';
-            operandSvg.style.height = '36px';
             operandTok.appendChild(operandSvg);
             expr.appendChild(operandTok);
 
@@ -1368,13 +1328,9 @@ function renderWorkflow() {
             entry.appendChild(expr);
         } else {
             const svgWrap = document.createElement('div');
-            svgWrap.className = 'thumb-svg';
-            // Render primitives at the same (small) scale as merged previews
+            svgWrap.className = 'operand-box program-result';
+            // Render primitive result using the same preview-style box
             const thumbSvg = renderThumbnail(item.pattern, 4);
-            thumbSvg.style.width = '48px';
-            thumbSvg.style.height = '48px';
-            svgWrap.style.width = '48px';
-            svgWrap.style.height = '48px';
             svgWrap.appendChild(thumbSvg);
             // Clicking thumbnail loads this pattern into workspace (does not toggle selection)
             svgWrap.addEventListener('click', (e) => {
