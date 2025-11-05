@@ -43,11 +43,11 @@ function showCompletionModal() {
     }
     modal.style.display = 'flex';
 }
-// --- TUTORIAL STATE (removed) ---
-// Keep minimal stubs so the rest of the code can call without effects.
-let tutorialMode = false;
+// --- TUTORIAL STATE ---
+// Tutorial system moved to tutorial.js for better code organization
+// Keep minimal compatibility variables that main experiment code depends on
+let tutorialMode = false; // Used by submitAnswer and other functions
 let tutorialFlags = { loadedFromBackpack: false };
-function checkTutorialProgress() { /* no-op: tutorial removed */ }
 // --- END TUTORIAL STATE ---
 // --- FAVORITES SYSTEM (persist across trials) ---
 // Store snapshots, not indices, so favorites survive when operationsHistory resets between trials
@@ -423,6 +423,8 @@ const transDSL = {
     reflect_diag: (a) => a[0].map((_, i) => a.map(row => row[i]))
 };
 
+// Tutorial patterns moved to tutorial.js
+
 const testCases = [
     // Row 1
     { name: "Row1-1", generate: () => [
@@ -674,23 +676,42 @@ function shuffleArray(array) {
     return newArray;
 }
 
+// Tutorial functions moved to tutorial.js
+
 function startExperiment() {
+    // Check if tutorial must be completed first
+    if (typeof hasTutorialBeenCompleted === 'function' && !hasTutorialBeenCompleted()) {
+        alert('Please complete the tutorial first before starting the experiment.');
+        return;
+    }
     allTrialsData = [];
     shouldRandomize = document.getElementById('randomizeOrder').checked;
-    
+
     testOrder = Array.from({length: testCases.length}, (_, i) => i);
     if (shouldRandomize) {
         testOrder = shuffleArray(testOrder);
     }
-    
+
     document.getElementById('welcomeScreen').style.display = 'none';
     document.getElementById('experimentContent').classList.remove('hidden');
+
+    // Show points card for experiment
+    const pointsCard = document.getElementById('pointsCard');
+    if (pointsCard) {
+        pointsCard.style.display = 'flex';
+    }
+
+    // Update progress bar for experiment
+    const totalTrialsEl = document.getElementById('totalTrials');
+    if (totalTrialsEl) {
+        totalTrialsEl.textContent = String(testCases.length);
+    }
 
     const totalTrials = testOrder.length;
     pointsPerCorrect = totalTrials > 0 ? POINTS_MAX / totalTrials : POINTS_MAX;
     totalPoints = 0;
     updatePointsDisplay();
-    
+
     allTrialsData.push({
         metadata: {
             randomized: shouldRandomize,
@@ -699,7 +720,7 @@ function startExperiment() {
             pointsPerCorrect
         }
     });
-    
+
     loadTrial(0);
 }
 
@@ -2027,6 +2048,14 @@ function submitAnswer() {
     }
 
     const match = JSON.stringify(currentPattern) === JSON.stringify(targetPattern);
+
+    // Tutorial mode handling - delegate to tutorial.js
+    if (tutorialMode && typeof handleTutorialSubmit === 'function') {
+        handleTutorialSubmit(match);
+        return;
+    }
+
+    // Normal experiment mode handling
     const previouslySuccessful = currentTrialRecord?.success === true;
 
     const modal = document.getElementById('feedbackModal');
