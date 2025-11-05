@@ -23,16 +23,24 @@
             </ul>
             
             <p>This experiment consists of 18 patterns to complete, expected to take 15-20 minutes.</p>
-            
+
+            <h2>Getting Started</h2>
+            <p>If you're new to this experiment, we recommend completing the tutorial first to familiarize yourself with all the operations.</p>
+
+            <div style="display:flex; gap:0.8rem; flex-wrap:wrap; margin-bottom: 1.5rem;">
+                <button class="start-btn" onclick="startTutorial()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+                    🎓 Start Tutorial (Recommended)
+                </button>
+                <button class="start-btn" onclick="startExperiment()" style="background: var(--color-primary);">
+                    Start Experiment
+                </button>
+            </div>
+
             <div class="randomize-option">
                 <label>
                     <input type="checkbox" id="randomizeOrder">
                     Randomize problem order (for formal experiments)
                 </label>
-            </div>
-            
-            <div style="display:flex; gap:0.8rem; flex-wrap:wrap;">
-                <button class="start-btn" onclick="startExperiment()">Start Experiment</button>
             </div>
         </div>
     </div>

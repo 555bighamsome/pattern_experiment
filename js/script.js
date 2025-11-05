@@ -43,11 +43,108 @@ function showCompletionModal() {
     }
     modal.style.display = 'flex';
 }
-// --- TUTORIAL STATE (removed) ---
-// Keep minimal stubs so the rest of the code can call without effects.
+// --- TUTORIAL STATE ---
 let tutorialMode = false;
+let tutorialCurrentStep = 0;
 let tutorialFlags = { loadedFromBackpack: false };
-function checkTutorialProgress() { /* no-op: tutorial removed */ }
+let tutorialOverlay = null;
+
+function showTutorialHint(message) {
+    if (!tutorialMode) return;
+
+    let overlay = document.getElementById('tutorialOverlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'tutorialOverlay';
+        overlay.className = 'tutorial-overlay';
+        document.body.appendChild(overlay);
+    }
+
+    overlay.innerHTML = `
+        <div class="tutorial-hint-box">
+            <div class="tutorial-step-indicator">Tutorial ${tutorialCurrentStep + 1} / ${tutorialCases.length}</div>
+            <div class="tutorial-hint-message">${message}</div>
+            <div class="tutorial-hint-footer">
+                <span class="tutorial-hint-tip">💡 Try to recreate the target pattern shown on the left</span>
+            </div>
+        </div>
+    `;
+    overlay.style.display = 'flex';
+}
+
+function hideTutorialHint() {
+    const overlay = document.getElementById('tutorialOverlay');
+    if (overlay) {
+        overlay.style.display = 'none';
+    }
+}
+
+function checkTutorialProgress() {
+    if (!tutorialMode) return;
+
+    const currentCase = tutorialCases[tutorialCurrentStep];
+    if (!currentCase || !currentCase.hint) return;
+
+    // Show the hint for the current step
+    showTutorialHint(currentCase.hint);
+}
+
+function completeTutorial() {
+    tutorialMode = false;
+    hideTutorialHint();
+
+    // Show completion modal
+    const modal = document.createElement('div');
+    modal.className = 'tutorial-completion-modal';
+    modal.innerHTML = `
+        <div class="tutorial-completion-content">
+            <div class="tutorial-completion-icon">🎉</div>
+            <h2>Tutorial Complete!</h2>
+            <p>Great job! You've learned all the operations.</p>
+            <p>Now you're ready to start the main experiment with 18 patterns.</p>
+            <div class="tutorial-completion-actions">
+                <button class="btn btn-primary tutorial-start-experiment-btn" onclick="startExperimentFromTutorial()">
+                    Start Experiment
+                </button>
+                <button class="btn btn-secondary tutorial-back-btn" onclick="backToWelcome()">
+                    Back to Welcome
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+function startExperimentFromTutorial() {
+    // Remove tutorial completion modal
+    const modal = document.querySelector('.tutorial-completion-modal');
+    if (modal) modal.remove();
+
+    // Reset tutorial state
+    tutorialMode = false;
+    tutorialCurrentStep = 0;
+
+    // Start the actual experiment
+    startExperiment();
+}
+
+function backToWelcome() {
+    // Remove tutorial completion modal
+    const modal = document.querySelector('.tutorial-completion-modal');
+    if (modal) modal.remove();
+
+    // Hide experiment content
+    document.getElementById('experimentContent').classList.add('hidden');
+
+    // Show welcome screen
+    document.getElementById('welcomeScreen').style.display = 'flex';
+
+    // Reset state
+    tutorialMode = false;
+    tutorialCurrentStep = 0;
+    currentTestIndex = 0;
+    totalPoints = 0;
+}
 // --- END TUTORIAL STATE ---
 // --- FAVORITES SYSTEM (persist across trials) ---
 // Store snapshots, not indices, so favorites survive when operationsHistory resets between trials
@@ -423,6 +520,85 @@ const transDSL = {
     reflect_diag: (a) => a[0].map((_, i) => a.map(row => row[i]))
 };
 
+// Tutorial patterns - designed to teach operations without revealing experiment stimuli
+const tutorialCases = [
+    // Tutorial 1: Single horizontal line (teaches basic primitive)
+    {
+        name: "Tutorial-1",
+        hint: "Let's start simple! Create a horizontal line by clicking the 'line_horizontal' button in the Primitives section.",
+        expectedOps: ["line_horizontal"],
+        generate: () => [
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [1,1,1,1,1,1,1,1,1,1],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0]
+        ]
+    },
+
+    // Tutorial 2: Simple corner (teaches binary operation - add)
+    {
+        name: "Tutorial-2",
+        hint: "Now let's combine two patterns! Click 'add' in Operations, then select 'line_horizontal', then 'diagonal'. Finally click 'Confirm'.",
+        expectedOps: ["add"],
+        generate: () => [
+            [1,0,0,0,0,0,0,0,0,0],
+            [0,1,0,0,0,0,0,0,0,0],
+            [0,0,1,0,0,0,0,0,0,0],
+            [0,0,0,1,0,0,0,0,0,0],
+            [0,0,0,0,1,0,0,0,0,0],
+            [1,1,1,1,1,1,1,1,1,1],
+            [0,0,0,0,0,0,1,0,0,0],
+            [0,0,0,0,0,0,0,1,0,0],
+            [0,0,0,0,0,0,0,0,1,0],
+            [0,0,0,0,0,0,0,0,0,1]
+        ]
+    },
+
+    // Tutorial 3: Inverted blank (teaches unary transform - invert)
+    {
+        name: "Tutorial-3",
+        hint: "Time to transform! Click 'invert', then select 'blank', and click 'Confirm' to create a filled pattern.",
+        expectedOps: ["invert"],
+        generate: () => [
+            [1,1,1,1,1,1,1,1,1,1],
+            [1,1,1,1,1,1,1,1,1,1],
+            [1,1,1,1,1,1,1,1,1,1],
+            [1,1,1,1,1,1,1,1,1,1],
+            [1,1,1,1,1,1,1,1,1,1],
+            [1,1,1,1,1,1,1,1,1,1],
+            [1,1,1,1,1,1,1,1,1,1],
+            [1,1,1,1,1,1,1,1,1,1],
+            [1,1,1,1,1,1,1,1,1,1],
+            [1,1,1,1,1,1,1,1,1,1]
+        ]
+    },
+
+    // Tutorial 4: Simple frame (teaches subtract operation and workflow reuse)
+    {
+        name: "Tutorial-4",
+        hint: "Final challenge! Create a frame by using 'subtract'. First make a filled pattern (invert blank), then subtract a square from it. Try clicking items in 'Your Program' to reuse them!",
+        expectedOps: ["subtract"],
+        generate: () => [
+            [1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1]
+        ]
+    }
+];
+
 const testCases = [
     // Row 1
     { name: "Row1-1", generate: () => [
@@ -674,23 +850,112 @@ function shuffleArray(array) {
     return newArray;
 }
 
+function startTutorial() {
+    tutorialMode = true;
+    tutorialCurrentStep = 0;
+
+    document.getElementById('welcomeScreen').style.display = 'none';
+    document.getElementById('experimentContent').classList.remove('hidden');
+
+    // Hide points card during tutorial
+    const pointsCard = document.getElementById('pointsCard');
+    if (pointsCard) {
+        pointsCard.style.display = 'none';
+    }
+
+    // Update progress bar for tutorial
+    const totalTrialsEl = document.getElementById('totalTrials');
+    if (totalTrialsEl) {
+        totalTrialsEl.textContent = String(tutorialCases.length);
+    }
+
+    loadTutorialStep(0);
+}
+
+function loadTutorialStep(stepIndex) {
+    if (stepIndex >= tutorialCases.length) {
+        completeTutorial();
+        return;
+    }
+
+    tutorialCurrentStep = stepIndex;
+    const tutorialCase = tutorialCases[stepIndex];
+
+    // Update progress
+    const currentTrialEl = document.getElementById('currentTrial');
+    if (currentTrialEl) {
+        currentTrialEl.textContent = String(stepIndex + 1);
+    }
+
+    const progressFill = document.getElementById('progressFill');
+    if (progressFill) {
+        const percent = ((stepIndex + 1) / tutorialCases.length) * 100;
+        progressFill.style.width = `${percent}%`;
+    }
+
+    const percentComplete = document.getElementById('percentComplete');
+    if (percentComplete) {
+        const percent = Math.round(((stepIndex + 1) / tutorialCases.length) * 100);
+        percentComplete.textContent = `${percent}%`;
+    }
+
+    // Update target number
+    const targetNumberEl = document.getElementById('targetNumber');
+    if (targetNumberEl) {
+        targetNumberEl.textContent = `Tutorial ${stepIndex + 1}`;
+    }
+
+    // Load the target pattern
+    targetPattern = tutorialCase.generate();
+    renderPattern(targetPattern, 'targetPattern');
+
+    // Reset workspace
+    currentPattern = geomDSL.blank();
+    renderPattern(currentPattern, 'workspace');
+
+    // Clear operations history
+    operationsHistory = [];
+    updateOperationsLog();
+
+    // Reset pending operations
+    pendingBinaryOp = null;
+    pendingUnaryOp = null;
+    workflowSelections = [];
+    updateAllButtonStates();
+
+    // Show tutorial hint
+    checkTutorialProgress();
+}
+
 function startExperiment() {
     allTrialsData = [];
     shouldRandomize = document.getElementById('randomizeOrder').checked;
-    
+
     testOrder = Array.from({length: testCases.length}, (_, i) => i);
     if (shouldRandomize) {
         testOrder = shuffleArray(testOrder);
     }
-    
+
     document.getElementById('welcomeScreen').style.display = 'none';
     document.getElementById('experimentContent').classList.remove('hidden');
+
+    // Show points card for experiment
+    const pointsCard = document.getElementById('pointsCard');
+    if (pointsCard) {
+        pointsCard.style.display = 'flex';
+    }
+
+    // Update progress bar for experiment
+    const totalTrialsEl = document.getElementById('totalTrials');
+    if (totalTrialsEl) {
+        totalTrialsEl.textContent = String(testCases.length);
+    }
 
     const totalTrials = testOrder.length;
     pointsPerCorrect = totalTrials > 0 ? POINTS_MAX / totalTrials : POINTS_MAX;
     totalPoints = 0;
     updatePointsDisplay();
-    
+
     allTrialsData.push({
         metadata: {
             randomized: shouldRandomize,
@@ -699,7 +964,7 @@ function startExperiment() {
             pointsPerCorrect
         }
     });
-    
+
     loadTrial(0);
 }
 
@@ -2027,6 +2292,39 @@ function submitAnswer() {
     }
 
     const match = JSON.stringify(currentPattern) === JSON.stringify(targetPattern);
+
+    // Tutorial mode handling
+    if (tutorialMode) {
+        const modal = document.getElementById('feedbackModal');
+        const icon = document.getElementById('feedbackIcon');
+        const message = document.getElementById('feedbackMessage');
+
+        if (modal && icon && message) {
+            if (match) {
+                icon.textContent = '✓';
+                icon.className = 'feedback-icon success';
+                message.textContent = `Excellent! You completed Tutorial ${tutorialCurrentStep + 1}.\n${tutorialCurrentStep < tutorialCases.length - 1 ? 'Moving to next tutorial...' : 'Tutorial complete!'}`;
+            } else {
+                icon.textContent = '✗';
+                icon.className = 'feedback-icon error';
+                message.textContent = 'Not quite right. Try again!\nCheck the hint above for guidance.';
+            }
+
+            modal.classList.add('show');
+
+            setTimeout(() => {
+                modal.classList.remove('show');
+                if (match) {
+                    // Move to next tutorial step on success
+                    hideTutorialHint();
+                    loadTutorialStep(tutorialCurrentStep + 1);
+                }
+            }, 2000);
+        }
+        return;
+    }
+
+    // Normal experiment mode handling
     const previouslySuccessful = currentTrialRecord?.success === true;
 
     const modal = document.getElementById('feedbackModal');
