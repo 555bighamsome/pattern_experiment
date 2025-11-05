@@ -217,6 +217,9 @@ function backToWelcome() {
     tutorialCurrentStep = 0;
     currentTestIndex = 0;
     totalPoints = 0;
+
+    // Update UI to reflect tutorial completion status
+    setTimeout(() => updateWelcomeScreenForTutorial(), 100);
 }
 
 // Start tutorial mode
@@ -328,3 +331,63 @@ function handleTutorialSubmit(match) {
     }
     return true; // Indicates tutorial handled the submission
 }
+
+// Update UI based on tutorial completion status
+function updateWelcomeScreenForTutorial() {
+    const experimentBtn = document.querySelector('.start-btn[onclick="startExperiment()"]');
+    const tutorialBtn = document.querySelector('.start-btn[onclick="startTutorial()"]');
+
+    if (!experimentBtn) return;
+
+    const isCompleted = hasTutorialBeenCompleted();
+
+    if (isCompleted) {
+        // Tutorial completed - enable experiment button
+        experimentBtn.disabled = false;
+        experimentBtn.style.opacity = '1';
+        experimentBtn.style.cursor = 'pointer';
+        experimentBtn.title = 'Start the main experiment';
+
+        // Update tutorial button text
+        if (tutorialBtn) {
+            tutorialBtn.innerHTML = '🔄 Redo Tutorial (Optional)';
+        }
+
+        // Add completion badge
+        let badge = document.getElementById('tutorialCompleteBadge');
+        if (!badge) {
+            badge = document.createElement('div');
+            badge.id = 'tutorialCompleteBadge';
+            badge.style.cssText = `
+                margin-top: 0.5rem;
+                padding: 0.5rem 1rem;
+                background: #dcfce7;
+                border: 1px solid #86efac;
+                border-radius: 0.5rem;
+                color: #166534;
+                font-size: 0.9rem;
+                text-align: center;
+            `;
+            badge.innerHTML = '✅ Tutorial completed! You can now start the experiment.';
+            experimentBtn.parentElement.insertAdjacentElement('afterend', badge);
+        }
+    } else {
+        // Tutorial not completed - disable experiment button
+        experimentBtn.disabled = true;
+        experimentBtn.style.opacity = '0.5';
+        experimentBtn.style.cursor = 'not-allowed';
+        experimentBtn.title = 'Please complete the tutorial first';
+
+        // Add onclick handler to show alert
+        experimentBtn.onclick = function(e) {
+            e.preventDefault();
+            alert('Please complete the tutorial before starting the experiment. This ensures you are familiar with all the operations.');
+            return false;
+        };
+    }
+}
+
+// Initialize tutorial UI on page load
+document.addEventListener('DOMContentLoaded', function() {
+    updateWelcomeScreenForTutorial();
+});
