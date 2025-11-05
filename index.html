@@ -25,13 +25,13 @@
             <p>This experiment consists of 18 patterns to complete, expected to take 15-20 minutes.</p>
 
             <h2>Getting Started</h2>
-            <p>If you're new to this experiment, we recommend completing the tutorial first to familiarize yourself with all the operations.</p>
+            <p><strong>⚠️ Important:</strong> All participants must complete the tutorial before starting the experiment. The tutorial will familiarize you with all operations needed for the main task.</p>
 
             <div style="display:flex; gap:0.8rem; flex-wrap:wrap; margin-bottom: 1.5rem;">
                 <button class="start-btn" onclick="startTutorial()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
-                    🎓 Start Tutorial (Recommended)
+                    🎓 Start Tutorial (Required)
                 </button>
-                <button class="start-btn" onclick="startExperiment()" style="background: var(--color-primary);">
+                <button class="start-btn" onclick="startExperiment()" style="background: var(--color-primary);" title="Complete tutorial first">
                     Start Experiment
                 </button>
             </div>
@@ -41,6 +41,12 @@
                     <input type="checkbox" id="randomizeOrder">
                     Randomize problem order (for formal experiments)
                 </label>
+            </div>
+
+            <div style="margin-top: 1.5rem; padding: 1rem; background: #f0f9ff; border-left: 4px solid #3b82f6; border-radius: 0.5rem;">
+                <p style="margin: 0; font-size: 0.9rem; color: #1e40af;">
+                    <strong>For Researchers:</strong> To reset tutorial completion status for testing, open browser console and run: <code style="background: white; padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-family: monospace;">resetTutorialCompletion()</code>
+                </p>
             </div>
         </div>
     </div>
@@ -194,6 +200,7 @@
         </div>
     </div>
 
+    <script src="js/tutorial.js"></script>
     <script src="js/script.js"></script>
 </body>
 </html>
