@@ -423,6 +423,33 @@ const transDSL = {
     reflect_diag: (a) => a[0].map((_, i) => a.map(row => row[i]))
 };
 
+const OP_ABBREVIATIONS = {
+    subtract: 'sub',
+    reflect_horizontal: 'refl_h',
+    reflect_vertical: 'refl_v',
+    reflect_diag: 'refl_d',
+    line_horizontal: 'line_h',
+    line_vertical: 'line_v',
+    diagonal: 'diag',
+    triangle: 'tri'
+};
+
+function getOperationAbbreviation(name) {
+    if (!name) return '';
+    const trimmed = name.trim();
+    return OP_ABBREVIATIONS[trimmed] || trimmed;
+}
+
+function formatOperationText(op) {
+    if (!op) return '';
+    const trimmed = op.trim();
+    const match = trimmed.match(/^(.*?)(\(.*\))?$/);
+    if (!match) return trimmed;
+    const base = match[1];
+    const suffix = match[2] || '';
+    return `${getOperationAbbreviation(base)}${suffix}`;
+}
+
 const testCases = [
     // Row 1
     { name: "Row1-1", generate: () => [
@@ -901,33 +928,43 @@ function renderThumbnail(pattern, scale = 6) {
     const svg = document.createElementNS(svgNS, 'svg');
     svg.setAttribute('width', SIZE * scale);
     svg.setAttribute('height', SIZE * scale);
+    svg.setAttribute('viewBox', `0 0 ${SIZE} ${SIZE}`);
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.style.display = 'block';
+
+    const gridStroke = Math.max(0.04, (scale / 6) * 0.08);
     for (let i = 0; i <= SIZE; i++) {
         const vline = document.createElementNS(svgNS, 'line');
-        vline.setAttribute('x1', i * scale);
+        vline.setAttribute('x1', i);
         vline.setAttribute('y1', 0);
-        vline.setAttribute('x2', i * scale);
-        vline.setAttribute('y2', SIZE * scale);
+        vline.setAttribute('x2', i);
+        vline.setAttribute('y2', SIZE);
         vline.setAttribute('stroke', '#e5e7eb');
-        vline.setAttribute('stroke-width', Math.max(0.4, scale * 0.08));
+        vline.setAttribute('stroke-width', gridStroke);
+        vline.setAttribute('shape-rendering', 'crispEdges');
         svg.appendChild(vline);
+
         const hline = document.createElementNS(svgNS, 'line');
         hline.setAttribute('x1', 0);
-        hline.setAttribute('y1', i * scale);
-        hline.setAttribute('x2', SIZE * scale);
-        hline.setAttribute('y2', i * scale);
+        hline.setAttribute('y1', i);
+        hline.setAttribute('x2', SIZE);
+        hline.setAttribute('y2', i);
         hline.setAttribute('stroke', '#e5e7eb');
-        hline.setAttribute('stroke-width', Math.max(0.4, scale * 0.08));
+        hline.setAttribute('stroke-width', gridStroke);
+        hline.setAttribute('shape-rendering', 'crispEdges');
         svg.appendChild(hline);
     }
+
     pattern.forEach((row, i) => {
         row.forEach((cell, j) => {
             if (cell) {
                 const rect = document.createElementNS(svgNS, 'rect');
-                rect.setAttribute('x', j * scale);
-                rect.setAttribute('y', i * scale);
-                rect.setAttribute('width', scale);
-                rect.setAttribute('height', scale);
+                rect.setAttribute('x', j);
+                rect.setAttribute('y', i);
+                rect.setAttribute('width', 1);
+                rect.setAttribute('height', 1);
                 rect.setAttribute('fill', '#08306B');
+                rect.setAttribute('shape-rendering', 'crispEdges');
                 svg.appendChild(rect);
             }
         });
@@ -1017,6 +1054,10 @@ function loadTrial(index) {
     allTrialsData.push(currentTrialRecord);
     
     updateProgressUI(currentTestIndex);
+
+    if (!tutorialMode) {
+        seedAddPreviewWithBlankOperand();
+    }
 }
 
 // Helper: update progress UI elements consistently from one place
@@ -1250,7 +1291,7 @@ function renderWorkflow() {
             expr.className = 'program-expr';
             const opTok = document.createElement('span');
             opTok.className = 'program-expr-op';
-            opTok.textContent = fn + '(';
+            opTok.textContent = getOperationAbbreviation(fn) + '(';
             expr.appendChild(opTok);
             // A operand thumb (reuse preview operand-box style)
             const aTok = document.createElement('div');
@@ -1296,7 +1337,8 @@ function renderWorkflow() {
             expr.className = 'program-expr';
             const opTok = document.createElement('span');
             opTok.className = 'program-expr-op';
-            opTok.textContent = item.opFn + '(';
+            const unaryName = item.opFn || opText.replace(/\(.*$/, '');
+            opTok.textContent = getOperationAbbreviation(unaryName) + '(';
             expr.appendChild(opTok);
 
             const operandTok = document.createElement('div');
@@ -1344,7 +1386,7 @@ function renderWorkflow() {
 
             const label = document.createElement('div');
             label.className = 'thumb-label';
-            label.textContent = `${item.operation}`;
+            label.textContent = formatOperationText(item.operation);
 
             // prepend line number badge
             const num = document.createElement('div');
@@ -1999,6 +2041,23 @@ function undoLast() {
         renderWorkflow();
         updateAllButtonStates();
     }
+}
+
+function seedAddPreviewWithBlankOperand() {
+    pendingBinaryOp = null;
+    pendingUnaryOp = null;
+    selectBinaryOp('add');
+    inlinePreview.aPattern = geomDSL.blank();
+    inlinePreview.aIndex = null;
+    inlinePreview.bPattern = null;
+    inlinePreview.bIndex = null;
+    workflowSelections = [];
+    previewPattern = null;
+    previewBackupPattern = null;
+    setWorkspaceGlow(false);
+    createBinaryPreview();
+    updateAllButtonStates();
+    updateInlinePreviewPanel();
 }
 
 function resetWorkspace() {
