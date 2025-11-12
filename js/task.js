@@ -129,30 +129,38 @@ function addFavoriteFromEntry(entry) {
     };
     favorites.push(snapshot);
     
-    // Enhanced data collection: record favorite addition
-    const stepId = entry.id || `s${Date.now()}_${Math.floor(Math.random()*1000)}`;
-    recordFavoriteAction(
-        currentTrialRecord,
-        allTrialsData,
-        'add',
-        id,
-        stepId,
-        pattern
-    );
+    // Enhanced data collection: record favorite addition (with error handling)
+    try {
+        const stepId = entry.id || `s${Date.now()}_${Math.floor(Math.random()*1000)}`;
+        recordFavoriteAction(
+            currentTrialRecord,
+            allTrialsData,
+            'add',
+            id,
+            stepId,
+            pattern
+        );
+    } catch (e) {
+        console.warn('Data collection error:', e);
+    }
 }
 
 function removeFavoriteById(id) {
     favorites = favorites.filter(f => f.id !== id);
     
-    // Enhanced data collection: record favorite removal
-    recordFavoriteAction(
-        currentTrialRecord,
-        allTrialsData,
-        'remove',
-        id,
-        null,
-        null
-    );
+    // Enhanced data collection: record favorite removal (with error handling)
+    try {
+        recordFavoriteAction(
+            currentTrialRecord,
+            allTrialsData,
+            'remove',
+            id,
+            null,
+            null
+        );
+    } catch (e) {
+        console.warn('Data collection error:', e);
+    }
 }
 
 function toggleFavoriteFromWorkflow(idx) {
@@ -1057,20 +1065,24 @@ function applySelectedBinary() {
     last.opFn = pendingBinaryOp;
     last.operands = { a: a, b: b };
     
-    // Enhanced data collection
-    const { aSource, bSource } = resolveBinaryOperandSources();
-    recordBinaryOperation(
-        currentTrialRecord,
-        allTrialsData,
-        pendingBinaryOp,
-        aSource,
-        bSource,
-        a,
-        b,
-        currentPattern,
-        labelA,
-        labelB
-    );
+    // Enhanced data collection (with error handling)
+    try {
+        const { aSource, bSource } = resolveBinaryOperandSources();
+        recordBinaryOperation(
+            currentTrialRecord,
+            allTrialsData,
+            pendingBinaryOp,
+            aSource,
+            bSource,
+            a,
+            b,
+            currentPattern,
+            labelA,
+            labelB
+        );
+    } catch (e) {
+        console.warn('Data collection error:', e);
+    }
     
     // Clear selections - don't auto-select the result
     workflowSelections = [];
@@ -1273,17 +1285,21 @@ function applySelectedUnary() {
     last.operands = { input: operandCopy };
     last.operandSource = operandSourceMeta;
 
-    // Enhanced data collection
-    const source = resolveUnaryOperandSource();
-    recordUnaryOperation(
-        currentTrialRecord,
-        allTrialsData,
-        pendingUnaryOp,
-        source,
-        operandCopy,
-        currentPattern,
-        operandLabel
-    );
+    // Enhanced data collection (with error handling)
+    try {
+        const source = resolveUnaryOperandSource();
+        recordUnaryOperation(
+            currentTrialRecord,
+            allTrialsData,
+            pendingUnaryOp,
+            source,
+            operandCopy,
+            currentPattern,
+            operandLabel
+        );
+    } catch (e) {
+        console.warn('Data collection error:', e);
+    }
 
     workflowSelections = [];
     clearUnaryPreview();
@@ -1569,16 +1585,20 @@ function submitAnswer() {
         currentTrialRecord.pointsAwarded = pointsAwardedThisSubmission;
         currentTrialRecord.totalPointsAfter = Math.round(totalPoints);
         
-        // Enhanced data collection: finalize trial record
-        currentTrialRecord.submittedAt = Date.now();
-        currentTrialRecord.finalPattern = JSON.parse(JSON.stringify(currentPattern));
-        currentTrialRecord.exactMatch = match;
-        
-        // Snapshot favorites state at trial end
-        snapshotFavorites(currentTrialRecord, allTrialsData, favorites);
-        
-        // Save to session storage
-        saveToSessionStorage(allTrialsData);
+        // Enhanced data collection: finalize trial record (with error handling)
+        try {
+            currentTrialRecord.submittedAt = Date.now();
+            currentTrialRecord.finalPattern = JSON.parse(JSON.stringify(currentPattern));
+            currentTrialRecord.exactMatch = match;
+            
+            // Snapshot favorites state at trial end
+            snapshotFavorites(currentTrialRecord, allTrialsData, favorites);
+            
+            // Save to session storage
+            saveToSessionStorage(allTrialsData);
+        } catch (e) {
+            console.warn('Data collection error:', e);
+        }
     }
 
     // Show centered modal feedback
