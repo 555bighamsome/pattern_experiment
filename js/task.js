@@ -20,9 +20,6 @@ import {
     shuffleArray,
     getTestCaseCount
 } from './modules/testData.js';
-import { startEthics } from './modules/ethics.js';
-import { startInstructions } from './modules/instruction.js';
-import { startComprehension } from './modules/comprehension.js';
 
 // (favorites popup legacy removed)
 
@@ -375,22 +372,17 @@ function resolveUnaryOperandSource() {
 }
 // preview removed; operations commit immediately
 
-async function startExperiment() {
-    // Complete instruction flow: Ethics → Instructions → Comprehension
-    await startEthics();
-    await startInstructions();
-    await startComprehension();
-    
+function startExperiment() {
     allTrialsData = [];
-    shouldRandomize = document.getElementById('randomizeOrder').checked;
+    
+    // No randomization option in task page - can be added as URL parameter if needed
+    const urlParams = new URLSearchParams(window.location.search);
+    const shouldRandomize = urlParams.get('randomize') === 'true';
     
     testOrder = Array.from({length: getTestCaseCount()}, (_, i) => i);
     if (shouldRandomize) {
         testOrder = shuffleArray(testOrder);
     }
-    
-    document.getElementById('welcomeScreen').style.display = 'none';
-    document.getElementById('experimentContent').classList.remove('hidden');
 
     const totalTrials = testOrder.length;
     pointsPerCorrect = totalTrials > 0 ? POINTS_MAX / totalTrials : POINTS_MAX;
@@ -1612,4 +1604,9 @@ Object.assign(globalScope, {
     addLastToFavorites,
     undoLast,
     resetWorkspace
+});
+
+// Auto-start experiment when task page loads
+document.addEventListener('DOMContentLoaded', () => {
+    startExperiment();
 });

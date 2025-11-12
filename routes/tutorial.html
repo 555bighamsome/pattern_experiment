@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0">
+    <title>Pattern DSL Experiment - Interactive Tutorial</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <style>
+        /* Tutorial-specific styles */
+        .tutorial-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 100;
+            pointer-events: none;
+        }
+        
+        /* Position tutorial box over Target Pattern area */
+        .target-card {
+            position: relative;
+        }
+        
+        .tutorial-box {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(31, 41, 55, 0.95) 0%, rgba(17, 24, 39, 0.95) 100%);
+            border: 2px solid rgba(245, 158, 11, 0.7);
+            border-radius: 8px;
+            padding: 1rem;
+            color: #fff;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            pointer-events: auto;
+            animation: fadeIn 0.4s ease-out;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        
+        .tutorial-box h2 {
+            color: #fbbf24;
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        
+        .tutorial-box p {
+            margin: 0.25rem 0;
+            line-height: 1.4;
+            font-size: 0.9rem;
+        }
+        
+        .tutorial-box ul, .tutorial-box ol {
+            margin: 0.25rem 0 0.25rem 1.5rem;
+            padding: 0;
+        }
+        
+        .tutorial-box li {
+            margin-bottom: 0.2rem;
+            font-size: 0.85rem;
+            line-height: 1.3;
+        }
+        
+        .tutorial-progress {
+            color: #9ca3af;
+            font-size: 0.75rem;
+            margin: 0 0 0.25rem 0;
+        }
+        
+        /* Practice-specific styles */
+        .practice-info-card {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%);
+            border: 2px solid rgba(59, 130, 246, 0.3);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            color: #e5e7eb;
+            grid-column: 1 / -1;
+        }
+        
+        .practice-info-card h2 {
+            color: #60a5fa;
+            margin: 0 0 0.5rem 0;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+        
+        .practice-info-card p {
+            margin: 0.3rem 0;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        
+        .practice-hint {
+            background: rgba(245, 158, 11, 0.1);
+            border-left: 3px solid #f59e0b;
+            padding: 0.5rem 0.75rem;
+            margin-top: 0.5rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            color: #fbbf24;
+        }
+        
+        .practice-navigation {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+            gap: 1rem;
+        }
+        
+        .practice-counter {
+            color: #9ca3af;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        
+        .practice-nav-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+    </style>
+</head>
+<body class="dark-page">
+    <!-- Main Interface (same as task.html) -->
+    <div id="experimentContent">
+        <div class="progress-bar">
+            <div class="progress-info">
+                Tutorial Mode
+            </div>
+        </div>
+
+        <div class="content-area">
+            <div class="points-card" id="pointsCard" role="status" aria-live="polite">
+                <div class="points-label">Points</div>
+                <div class="points-value" id="pointsValue">0</div>
+            </div>
+
+            <div id="binaryPreviewPanel" class="panel-card preview-card binary-preview-panel">
+                <div class="binary-preview-header is-hidden">
+                    <div id="binaryPreviewTitle" class="binary-preview-title"></div>
+                </div>
+                <div id="binaryPreviewPlaceholder" class="binary-preview-placeholder">Select an operation to get started</div>
+                <div id="binaryPreviewBody" class="binary-preview-body" style="display:none;">
+                    <div id="binaryInlineOpLabel" class="binary-inline-op">add(</div>
+                    <div id="binaryOperandA" class="operand-box"></div>
+                    <div class="binary-inline-comma">,</div>
+                    <div id="binaryOperandB" class="operand-box"></div>
+                    <div class="binary-inline-close">)</div>
+                </div>
+                <div id="unaryPreviewBody" class="binary-preview-body unary-preview-body" style="display:none;">
+                    <div id="unaryInlineOpLabel" class="binary-inline-op">invert(</div>
+                    <div id="unaryOperandBox" class="operand-box"></div>
+                    <div class="binary-inline-close">)</div>
+                </div>
+                <div class="binary-preview-footer">
+                    <button id="binaryConfirmBtn" class="btn btn-success binary-confirm-btn" onclick="confirmPendingOperation()" disabled>
+                        ✓ Confirm
+                    </button>
+                    <button id="binaryResetBtn" class="btn btn-warning binary-cancel-btn" onclick="resetPendingOperation()" disabled>
+                        ⟲ Reset
+                    </button>
+                </div>
+            </div>
+
+            <div class="panel-card target-card">
+                <h3 class="panel-title">Target Pattern</h3>
+                <div id="targetPattern" class="pattern-view"></div>
+                
+                <!-- Tutorial Overlay inside Target Pattern card -->
+                <div id="tutorialOverlay" class="tutorial-overlay">
+                    <div class="tutorial-box">
+                        <div class="tutorial-progress">Tutorial Step <span id="tutorialStep">1</span> of <span id="tutorialTotal">5</span></div>
+                        <div class="tutorial-text">
+                            <h2 id="tutorialTitle">Welcome to the Tutorial!</h2>
+                            <div id="tutorialContent">
+                                <p>This interactive tutorial will show you how to use the interface.</p>
+                                <p>Click "Next" to continue.</p>
+                            </div>
+                        </div>
+                        <div class="tutorial-actions" style="margin-top: 0.75rem; text-align: right;">
+                            <button class="big-button" id="tutorialNextBtn">Next >></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-card pattern-card">
+                <h3 class="panel-title">Your Pattern</h3>
+                <div class="workspace-canvas" id="workspace"></div>
+            </div>
+
+            <div class="panel-card controls-card">
+                <div class="controls-section operations-section">
+                    <h4 class="panel-subtitle">Operations</h4>
+                    <div class="section-panel">
+                    <div class="operations-grid">
+                        <button id="bin-add" data-op="add" class="transform-btn binary-btn" onclick="selectBinaryOp('add')" title="Add/OR two patterns">
+                            <span class="btn-text">add</span>
+                        </button>
+                        <button id="bin-subtract" data-op="subtract" class="transform-btn binary-btn" onclick="selectBinaryOp('subtract')" title="Subtract one pattern from another">
+                            <span class="btn-text">subtract</span>
+                        </button>
+                        <button id="bin-union" data-op="union" class="transform-btn binary-btn" onclick="selectBinaryOp('union')" title="Union/AND two patterns">
+                            <span class="btn-text">union</span>
+                        </button>
+                        <button class="transform-btn unary-btn" data-op="invert" onclick="applyTransform('invert')" title="Invert pattern (flip black/white)">
+                            <span class="btn-text">invert</span>
+                        </button>
+                        <button class="transform-btn unary-btn" data-op="reflect_horizontal" onclick="applyTransform('reflect_horizontal')" title="Reflect horizontally - top ⟷ bottom">
+                            <span class="btn-arrow">⇵</span>
+                            <span class="btn-text">flip_h</span>
+                        </button>
+                        <button class="transform-btn unary-btn" data-op="reflect_vertical" onclick="applyTransform('reflect_vertical')" title="Reflect vertically - left ⟷ right">
+                            <span class="btn-arrow">⇄</span>
+                            <span class="btn-text">flip_v</span>
+                        </button>
+                        <button class="transform-btn unary-btn" data-op="reflect_diag" onclick="applyTransform('reflect_diag')" title="Reflect diagonally">
+                            <span class="btn-arrow">⤢</span>
+                            <span class="btn-text">flip_d</span>
+                        </button>
+                    </div>
+                    </div>
+                </div>
+                <div class="controls-section primitives-section">
+                    <h4 class="panel-subtitle">Primitives</h4>
+                    <div class="section-panel">
+                    <div class="primitives-grid-inline">
+                        <button class="primitive-btn" data-op="blank" onclick="applyPrimitive('blank')" title="Create blank pattern">
+                            <span class="btn-icon"></span>
+                        </button>
+                        <button class="primitive-btn" data-op="line_horizontal" onclick="applyPrimitive('line_horizontal')" title="Horizontal line">
+                            <span class="btn-icon"></span>
+                        </button>
+                        <button class="primitive-btn" data-op="line_vertical" onclick="applyPrimitive('line_vertical')" title="Vertical line">
+                            <span class="btn-icon"></span>
+                        </button>
+                        <button class="primitive-btn" data-op="diagonal" onclick="applyPrimitive('diagonal')" title="Diagonal line">
+                            <span class="btn-icon"></span>
+                        </button>
+                        <button class="primitive-btn" data-op="square" onclick="applyPrimitive('square')" title="Square shape">
+                            <span class="btn-icon"></span>
+                        </button>
+                        <button class="primitive-btn" data-op="triangle" onclick="applyPrimitive('triangle')" title="Triangle shape">
+                            <span class="btn-icon"></span>
+                        </button>
+                    </div>
+                    </div>
+                </div>
+                <div class="controls-section helpers-section">
+                    <div class="helpers-header-row">
+                        <h3 class="helpers-title">Your helpers</h3>
+                    </div>
+                    <div class="section-panel helpers-panel">
+                        <div id="favoritesShelf" class="helpers-grid">
+                            <div class="helpers-empty">Favorite a step to reuse it here.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-card program-card">
+                <div class="program-header">
+                    <h3>Your Program</h3>
+                    <button class="btn btn-success program-submit" onclick="submitAnswer()" title="Submit your answer">
+                        <span style="font-size:1.1rem; margin-right:0.2rem;">✓</span> Submit
+                    </button>
+                </div>
+                <div class="operations-log" id="operationsLog">
+                    <span style="color: #9ca3af; font-size: 0.85rem;">Waiting for operations...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feedback Modal for Submit Results -->
+        <div class="feedback-modal" id="feedbackModal">
+            <div class="feedback-content">
+                <div class="feedback-icon" id="feedbackIcon"></div>
+                <div class="feedback-message" id="feedbackMessage"></div>
+            </div>
+        </div>
+
+        <!-- Practice Completion Modal -->
+        <div class="feedback-modal" id="practiceCompletionModal" style="display: none;">
+            <div class="feedback-content">
+                <div class="feedback-icon success">✓</div>
+                <div class="feedback-message" style="margin-bottom: 1.5rem;">
+                    Great job! You've completed all practice exercises.
+                </div>
+                <button class="big-button" onclick="location.href='comprehension.html'" style="font-size: 1rem; padding: 0.75rem 1.5rem;">
+                    Continue to Comprehension Questions >>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="../js/tutorial.js"></script>
+</body>
+</html>

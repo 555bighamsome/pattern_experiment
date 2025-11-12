@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pattern DSL Experiment - Comprehension Check</title>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body class="light-page">
+    <div id="comprehension">
+        <h1>Comprehension Questions</h1>
+        <div class="frame">
+            <form id="prequiz">
+                <ol>
+                    <li>What is your main goal in this experiment?</li>
+                    <p>
+                        <input type="radio" name="check1" value="a"> Create as many programs as possible within the time limit<br>
+                        <input type="radio" name="check1" value="b"> Recreate target patterns exactly using shapes and operations<br>
+                        <input type="radio" name="check1" value="c"> Create the shortest program possible for each pattern<br>
+                        <input type="radio" name="check1" value="d"> Design original patterns that look interesting
+                    </p>
+                    
+                    <li>How do you earn bonus points?</li>
+                    <p>
+                        <input type="radio" name="check2" value="a"> By completing each pattern as quickly as possible<br>
+                        <input type="radio" name="check2" value="b"> When your program exactly matches the target pattern<br>
+                        <input type="radio" name="check2" value="c"> By using the fewest operations in your program<br>
+                        <input type="radio" name="check2" value="d"> By saving many programs to your collection
+                    </p>
+                    
+                    <li>What happens to programs you save to your collection?</li>
+                    <p>
+                        <input type="radio" name="check3" value="a"> They are only available for the current pattern<br>
+                        <input type="radio" name="check3" value="b"> They disappear after 5 patterns<br>
+                        <input type="radio" name="check3" value="c"> They carry forward and can be used in all future tasks<br>
+                        <input type="radio" name="check3" value="d"> They are shared with other participants
+                    </p>
+                    
+                    <li>Which of the following is TRUE about saved programs?</li>
+                    <p>
+                        <input type="radio" name="check4" value="a"> You can give them custom names<br>
+                        <input type="radio" name="check4" value="b"> You can see a visual preview of what each saved program creates<br>
+                        <input type="radio" name="check4" value="c"> You must use them in every subsequent pattern<br>
+                        <input type="radio" name="check4" value="d"> They can only be used once
+                    </p>
+                </ol>
+            </form>
+        </div>
+        <div class="button-group">
+            <button class="big-button" id="check-btn" disabled>Check</button>
+        </div>
+    </div>
+    
+    <div id="pass" style="display: none">
+        <h2>Congratulations! Let's begin the experiment!</h2>
+        <div class="button-group">
+            <button class="big-button" id="pass-btn">>></button>
+        </div>
+    </div>
+    
+    <div id="retry" style="display: none">
+        <h2>Oops, please read the instructions carefully and try again.</h2>
+        <div class="button-group">
+            <button class="big-button" id="retry-btn"><< Instructions</button>
+        </div>
+    </div>
+    
+    <script src="../js/comprehension.js"></script>
+</body>
+</html>

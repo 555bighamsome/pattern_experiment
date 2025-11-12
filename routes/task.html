@@ -3,41 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0">
-    <title>Pattern DSL Behavioral Experiment</title>
-    <link rel="stylesheet" href="css/styles.css">
+    <title>Pattern DSL Experiment - Task</title>
+    <link rel="stylesheet" href="../css/styles.css">
 </head>
-<body>
-    <div class="welcome-screen" id="welcomeScreen">
-        <div class="welcome-content">
-            <h1>Pattern DSL Behavioral Experiment</h1>
-            
-            <h2>Experiment Instructions</h2>
-            <p>Welcome to this experiment. You will need to use the provided geometric primitives and transformation operations to recreate target patterns.</p>
-            
-            <h2>Operation Instructions</h2>
-            <ul>
-                <li><strong>Basic Primitives:</strong> Including blank, horizontal line, vertical line, diagonal, square, and triangle</li>
-                <li><strong>Unary Transforms:</strong> You can invert or flip the current pattern in various directions</li>
-                <li><strong>Binary Operations:</strong> You can perform add (OR), subtract, or union (AND) operations on two patterns</li>
-                <li><strong>Quick Actions:</strong> Undo and reset functions are available</li>
-            </ul>
-            
-            <p>This experiment consists of 18 patterns to complete, expected to take 15-20 minutes.</p>
-            
-            <div class="randomize-option">
-                <label>
-                    <input type="checkbox" id="randomizeOrder">
-                    Randomize problem order (for formal experiments)
-                </label>
-            </div>
-            
-            <div style="display:flex; gap:0.8rem; flex-wrap:wrap;">
-                <button class="start-btn" onclick="startExperiment()">Start Experiment</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="experimentContent" class="hidden">
+<body class="dark-page">
+    <div id="experimentContent">
         <div class="progress-bar">
             <div class="progress-info">
                 Progress: <span id="currentTrial">1</span> / <span id="totalTrials">18</span>
@@ -175,8 +145,6 @@
             </div>
         </div>
 
-        
-
         <!-- Feedback Modal for Submit Results -->
         <div class="feedback-modal" id="feedbackModal">
             <div class="feedback-content">
@@ -186,6 +154,6 @@
         </div>
     </div>
 
-    <script src="js/script.js"></script>
+    <script type="module" src="../js/task.js"></script>
 </body>
 </html>

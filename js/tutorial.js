@@ -20,9 +20,44 @@ import {
     shuffleArray,
     getTestCaseCount
 } from './modules/testData.js';
-import { startEthics } from './modules/ethics.js';
-import { startInstructions } from './modules/instruction.js';
-import { startComprehension } from './modules/comprehension.js';
+
+// --- PRACTICE MODE ---
+let isPracticeMode = false;
+let currentPracticeExercise = 0;
+
+// 练习题使用与正式试验相同的结构
+const practiceExercises = [
+    {
+        name: "Practice Exercise 1",
+        generate: () => [
+            [0,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,0,0,0,0,0,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,0]
+        ]
+    },
+    {
+        name: "Practice Exercise 2",
+        generate: () => [
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [1,1,1,1,1,1,1,1,1,1],
+            [1,1,1,1,1,1,1,1,1,1],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,0,0,0]
+        ]
+    }
+];
 
 // (favorites popup legacy removed)
 
@@ -375,22 +410,17 @@ function resolveUnaryOperandSource() {
 }
 // preview removed; operations commit immediately
 
-async function startExperiment() {
-    // Complete instruction flow: Ethics → Instructions → Comprehension
-    await startEthics();
-    await startInstructions();
-    await startComprehension();
-    
+function startExperiment() {
     allTrialsData = [];
-    shouldRandomize = document.getElementById('randomizeOrder').checked;
+    
+    // No randomization option in task page - can be added as URL parameter if needed
+    const urlParams = new URLSearchParams(window.location.search);
+    const shouldRandomize = urlParams.get('randomize') === 'true';
     
     testOrder = Array.from({length: getTestCaseCount()}, (_, i) => i);
     if (shouldRandomize) {
         testOrder = shuffleArray(testOrder);
     }
-    
-    document.getElementById('welcomeScreen').style.display = 'none';
-    document.getElementById('experimentContent').classList.remove('hidden');
 
     const totalTrials = testOrder.length;
     pointsPerCorrect = totalTrials > 0 ? POINTS_MAX / totalTrials : POINTS_MAX;
@@ -1499,29 +1529,45 @@ function submitAnswer() {
 
     // Show centered modal feedback
     if (modal && icon && message) {
-        const totalDisplay = formatPoints(Math.round(totalPoints));
         if (match) {
             icon.textContent = '✓';
             icon.className = 'feedback-icon success';
             const lines = [];
-            if (pointsAwardedThisSubmission > 0) {
-                lines.push(`Correct! +${formatPoints(pointsAwardedThisSubmission)} points.`);
-            } else if (previouslySuccessful) {
-                lines.push('Correct! Points were already awarded for this trial.');
-            } else {
+            
+            // 练习模式：不显示分数
+            if (isPracticeMode) {
                 lines.push('Correct!');
+                lines.push(`Used ${operationsHistory.length} operations.`);
+            } else {
+                // 正式试验模式：显示分数
+                const totalDisplay = formatPoints(Math.round(totalPoints));
+                if (pointsAwardedThisSubmission > 0) {
+                    lines.push(`Correct! +${formatPoints(pointsAwardedThisSubmission)} points.`);
+                } else if (previouslySuccessful) {
+                    lines.push('Correct! Points were already awarded for this trial.');
+                } else {
+                    lines.push('Correct!');
+                }
+                lines.push(`Used ${operationsHistory.length} operations.`);
+                lines.push(`Total ${totalDisplay}/${POINTS_MAX}.`);
             }
-            lines.push(`Used ${operationsHistory.length} operations.`);
-            lines.push(`Total ${totalDisplay}/${POINTS_MAX}.`);
             message.textContent = lines.join('\n');
         } else {
             icon.textContent = '✗';
             icon.className = 'feedback-icon error';
-            const lines = [
-                'Not quite right. 0 points this round.',
-                `Used ${operationsHistory.length} operations.`,
-                `Total ${totalDisplay}/${POINTS_MAX}.`
-            ];
+            const lines = [];
+            
+            // 练习模式：不显示分数
+            if (isPracticeMode) {
+                lines.push('Not quite right. Try again!');
+                lines.push(`Used ${operationsHistory.length} operations.`);
+            } else {
+                // 正式试验模式：显示分数
+                const totalDisplay = formatPoints(Math.round(totalPoints));
+                lines.push('Not quite right. 0 points this round.');
+                lines.push(`Used ${operationsHistory.length} operations.`);
+                lines.push(`Total ${totalDisplay}/${POINTS_MAX}.`);
+            }
             message.textContent = lines.join('\n');
         }
 
@@ -1529,12 +1575,24 @@ function submitAnswer() {
 
         setTimeout(() => {
             modal.classList.remove('show');
-            if (currentTestIndex < getTotalTrials() - 1) {
-                const nextIndex = currentTestIndex + 1;
-                resetWorkspace();
-                loadTrial(nextIndex);
+            
+            // 练习模式：自动进入下一个练习
+            if (isPracticeMode) {
+                if (currentPracticeExercise < practiceExercises.length - 1) {
+                    loadPracticeExercise(currentPracticeExercise + 1);
+                } else {
+                    // 练习完成，显示完成模态框
+                    showPracticeCompletionModal();
+                }
             } else {
-                showCompletionModal();
+                // 正式试验模式
+                if (currentTestIndex < getTotalTrials() - 1) {
+                    const nextIndex = currentTestIndex + 1;
+                    resetWorkspace();
+                    loadTrial(nextIndex);
+                } else {
+                    showCompletionModal();
+                }
             }
         }, 2000);
     }
@@ -1596,13 +1654,8 @@ function registerKeyboardShortcuts() {
     document.addEventListener('keydown', handleExperimentShortcut);
 }
 
-// Run on initial load: default-select add and update UI
-document.addEventListener('DOMContentLoaded', () => {
-    initializeApp();
-});
-
+// Expose functions globally for HTML onclick handlers
 Object.assign(globalScope, {
-    startExperiment,
     selectBinaryOp,
     applyTransform,
     applyPrimitive,
@@ -1612,4 +1665,353 @@ Object.assign(globalScope, {
     addLastToFavorites,
     undoLast,
     resetWorkspace
+});
+
+// === TUTORIAL SPECIFIC CODE ===
+
+let currentTutorialStep = 0;
+let tutorialCompletionInterval = null;
+
+const tutorialSteps = [
+    {
+        title: "Welcome to the Tutorial!",
+        content: `<p>This interactive tutorial will show you how to use the interface.</p>
+            <p>You'll see the same interface you'll use in the actual experiment.</p>
+            <p>Click "Next" to continue.</p>`,
+        onEnter: null,
+        waitForAction: false,
+        checkCompletion: null
+    },
+    {
+        title: "The Interface Overview",
+        content: `<p>Here's what you'll see:</p>
+            <ul>
+                <li><strong>Preview Panel</strong> (top left): Shows operation before confirming</li>
+                <li><strong>Target Pattern</strong>: Pattern you need to recreate</li>
+                <li><strong>Your Pattern</strong>: Your current work</li>
+                <li><strong>Operations & Primitives</strong> (right): Building blocks</li>
+                <li><strong>Your Program</strong> (bottom): All your steps</li>
+            </ul>`,
+        onEnter: () => {
+            const target = document.getElementById('targetPattern');
+            if (target) renderPattern(geomDSL.square(), target);
+        },
+        waitForAction: false,
+        checkCompletion: null
+    },
+    {
+        title: "Step 1: Select an Operation",
+        content: `<p><strong>Task:</strong> Click <strong>invert</strong> in Operations.</p>
+            <p>You must <em>first select an operation</em>, then provide input(s).</p>
+            <p><em style="color: #fbbf24;">"Next" appears after you click invert.</em></p>`,
+        onEnter: () => highlightTutorialElement('.operations-section'),
+        waitForAction: true,
+        checkCompletion: () => pendingUnaryOp === 'invert'
+    },
+    {
+        title: "Step 2: Provide the Input",
+        content: `<p><strong>Task:</strong> Click the <strong>square</strong> primitive.</p>
+            <p>You'll see a preview showing invert(square).</p>
+            <p><em style="color: #fbbf24;">"Next" appears after you select square.</em></p>`,
+        onEnter: () => {
+            removeTutorialHighlight();
+            highlightTutorialElement('.primitives-section');
+        },
+        waitForAction: true,
+        checkCompletion: () => unaryPreviewState.source !== null
+    },
+    {
+        title: "Step 3: Confirm",
+        content: `<p><strong>Task:</strong> Click <strong>✓ Confirm</strong>.</p>
+            <p>This executes and adds to your program!</p>
+            <p><em style="color: #fbbf24;">"Next" appears after you confirm.</em></p>`,
+        onEnter: () => {
+            removeTutorialHighlight();
+            highlightTutorialElement('#binaryPreviewPanel');
+        },
+        waitForAction: true,
+        checkCompletion: () => operationsHistory.length > 0
+    },
+    {
+        title: "Try a Binary Operation",
+        content: `<p><strong>Task:</strong> Binary operation!</p>
+            <ol>
+                <li>Click <strong>add</strong></li>
+                <li>Click <strong>triangle</strong> (operand A)</li>
+                <li>Click <strong>square</strong> (operand B)</li>
+                <li>Click <strong>✓ Confirm</strong></li>
+            </ol>
+            <p><em style="color: #fbbf24;">"Next" when complete.</em></p>`,
+        onEnter: () => {
+            removeTutorialHighlight();
+            highlightTutorialElement('.operations-section');
+        },
+        waitForAction: true,
+        checkCompletion: () => operationsHistory.length >= 2
+    },
+    {
+        title: "Using Reset",
+        content: `<p>If you make a mistake, click <strong>⟲ Reset</strong>.</p>
+            <p><strong>Try:</strong> Click an operation, then <strong>⟲ Reset</strong>.</p>`,
+        onEnter: () => {
+            removeTutorialHighlight();
+            highlightTutorialElement('#binaryPreviewPanel');
+        },
+        waitForAction: false,
+        checkCompletion: null
+    },
+    {
+        title: "Other Operations",
+        content: `<p>More operations:</p>
+            <ul>
+                <li><strong>Binary:</strong> add (OR), subtract (remove), union (AND)</li>
+                <li><strong>Unary:</strong> invert, flip_h/v/d (reflections)</li>
+            </ul>
+            <p>Primitives: blank, lines, square, triangle</p>`,
+        onEnter: () => {
+            removeTutorialHighlight();
+            highlightTutorialElement('.operations-section');
+            setTimeout(() => highlightTutorialElement('.primitives-section'), 1500);
+        },
+        waitForAction: false,
+        checkCompletion: null
+    },
+    {
+        title: "Selecting Program Steps",
+        content: `<p><strong>Important:</strong> You can <em>click</em> steps in "Your Program" to select them!</p>
+            <p>Selected steps (highlighted) can be used as inputs for operations.</p>
+            <p><strong>Try it now:</strong> Click any step below → it highlights. Click again to deselect.</p>`,
+        onEnter: () => {
+            removeTutorialHighlight();
+            highlightTutorialElement('.program-card');
+        },
+        waitForAction: false,
+        checkCompletion: null
+    },
+    {
+        title: "Using Selected Steps",
+        content: `<p>When selecting an operation (e.g., <strong>add</strong>), you can use:</p>
+            <ul>
+                <li><strong>Primitives</strong> - Click primitive buttons, OR</li>
+                <li><strong>Program steps</strong> - Click steps in "Your Program"</li>
+            </ul>
+            <p>This lets you reuse previous results!</p>`,
+        onEnter: () => {
+            removeTutorialHighlight();
+            highlightTutorialElement('.operations-section');
+            setTimeout(() => highlightTutorialElement('.program-card'), 1500);
+        },
+        waitForAction: false,
+        checkCompletion: null
+    },
+    {
+        title: "Helpers - Save Favorites",
+        content: `<p><strong>Helpers</strong> let you save patterns for quick reuse!</p>
+            <ol>
+                <li>Find the <strong>+</strong> button in "Your helpers" section header</li>
+                <li>Click it to save the step as a helper</li>
+                <li>It appears in "Your helpers" section</li>
+                <li>Click helpers to use them as operands (just like primitives!)</li>
+            </ol>
+            <p><em>This is optional but saves time when patterns repeat.</em></p>`,
+        onEnter: () => {
+            removeTutorialHighlight();
+            highlightTutorialElement('.helpers-section');
+            setTimeout(() => highlightTutorialElement('.program-card'), 1500);
+        },
+        waitForAction: false,
+        checkCompletion: null
+    },
+    {
+        title: "Submitting Your Answer",
+        content: `<p>When you're satisfied with your pattern:</p>
+            <ol>
+                <li><strong>Option 1:</strong> Submit the last step (default) - just click <strong>✓ Submit</strong></li>
+                <li><strong>Option 2:</strong> Click any step in "Your Program" to select it, then click <strong>✓ Submit</strong></li>
+                <li>Get feedback and earn points!</li>
+            </ol>
+            <p><em>Tip: Click steps to preview different results before submitting!</em></p>`,
+        onEnter: () => {
+            removeTutorialHighlight();
+            highlightTutorialElement('.program-card');
+        },
+        waitForAction: false,
+        checkCompletion: null
+    },
+    {
+        title: "Complete!",
+        content: `<p>You've learned everything:</p>
+            <ul>
+                <li>✓ <strong>Operations:</strong> Binary & Unary</li>
+                <li>✓ <strong>Workflow:</strong> Operation → Primitive → Preview → Confirm</li>
+                <li>✓ <strong>Reset:</strong> Cancel operations</li>
+                <li>✓ <strong>Helpers:</strong> Save favorites</li>
+                <li>✓ <strong>Submit:</strong> Complete</li>
+            </ul>
+            <p><strong>Ready for the practice exercises?</strong></p>`,
+        onEnter: () => removeTutorialHighlight(),
+        waitForAction: false,
+        checkCompletion: null
+    }
+];
+function highlightTutorialElement(selector) {
+    const el = document.querySelector(selector);
+    if (el) {
+        el.style.border = '3px solid #f59e0b';
+        el.style.boxShadow = '0 0 20px rgba(245, 158, 11, 0.5)';
+        el.style.transition = 'all 0.3s ease';
+    }
+}
+
+function removeTutorialHighlight() {
+    document.querySelectorAll('.primitives-section, .operations-section, #binaryPreviewPanel, .helpers-section, .program-card').forEach(el => {
+        el.style.border = '';
+        el.style.boxShadow = '';
+    });
+}
+
+function showTutorialStep(step) {
+    const overlay = document.getElementById('tutorialOverlay');
+    const stepSpan = document.getElementById('tutorialStep');
+    const totalSpan = document.getElementById('tutorialTotal');
+    const titleEl = document.getElementById('tutorialTitle');
+    const contentEl = document.getElementById('tutorialContent');
+    const nextBtn = document.getElementById('tutorialNextBtn');
+    
+    if (!overlay || !nextBtn) return;
+    
+    stepSpan.textContent = step + 1;
+    totalSpan.textContent = tutorialSteps.length;
+    titleEl.textContent = tutorialSteps[step].title;
+    contentEl.innerHTML = tutorialSteps[step].content;
+    
+    if (tutorialCompletionInterval) {
+        clearInterval(tutorialCompletionInterval);
+        tutorialCompletionInterval = null;
+    }
+    
+    if (tutorialSteps[step].onEnter) {
+        tutorialSteps[step].onEnter();
+    }
+    
+    if (tutorialSteps[step].waitForAction) {
+        nextBtn.style.display = 'none';
+        startTutorialCompletionCheck(step);
+    } else {
+        nextBtn.style.display = 'inline-block';
+        nextBtn.classList.remove('pulse-animation');
+    }
+    
+    if (step === tutorialSteps.length - 1) {
+        nextBtn.textContent = 'Start Practice Exercises >>';
+    } else {
+        nextBtn.textContent = 'Next >>';
+    }
+}
+
+function startTutorialCompletionCheck(step) {
+    tutorialCompletionInterval = setInterval(() => {
+        if (tutorialSteps[step].checkCompletion && tutorialSteps[step].checkCompletion()) {
+            const nextBtn = document.getElementById('tutorialNextBtn');
+            if (nextBtn) {
+                nextBtn.style.display = 'inline-block';
+                nextBtn.classList.add('pulse-animation');
+            }
+            clearInterval(tutorialCompletionInterval);
+            tutorialCompletionInterval = null;
+        }
+    }, 300);
+}
+
+function handleTutorialNext() {
+    const nextBtn = document.getElementById('tutorialNextBtn');
+    if (nextBtn) nextBtn.classList.remove('pulse-animation');
+    
+    currentTutorialStep++;
+    
+    if (currentTutorialStep < tutorialSteps.length) {
+        showTutorialStep(currentTutorialStep);
+    } else {
+        // Tutorial完成，切换到练习模式
+        removeTutorialHighlight();
+        startPracticeMode();
+    }
+}
+
+// --- PRACTICE MODE FUNCTIONS ---
+function startPracticeMode() {
+    isPracticeMode = true;
+    
+    // 隐藏教程覆盖层
+    const tutorialOverlay = document.getElementById('tutorialOverlay');
+    if (tutorialOverlay) {
+        tutorialOverlay.style.display = 'none';
+    }
+    
+    // 加载第一个练习
+    loadPracticeExercise(0);
+    
+    showToast('Practice mode started!', 'success');
+}
+
+function showPracticeCompletionModal() {
+    const modal = document.getElementById('practiceCompletionModal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+// 完全复制task.js的loadTrial逻辑
+function loadPracticeExercise(index) {
+    // 确保索引有效
+    const clamped = Math.max(0, Math.min(index, practiceExercises.length - 1));
+    currentPracticeExercise = clamped;
+    
+    // 生成目标图案
+    targetPattern = practiceExercises[currentPracticeExercise].generate();
+    renderPattern(targetPattern, 'targetPattern');
+    
+    // 清空工作区和工作流程/日志（复制resetWorkspace逻辑）
+    resetWorkspace();
+    
+    // 从空白画布开始
+    currentPattern = geomDSL.blank();
+    renderPattern(currentPattern, 'workspace', {
+        diffMode: pendingBinaryOp,
+        basePattern: previewBackupPattern?.pattern
+    });
+    
+    // 初始化预览（复制task.js的逻辑）
+    seedAddPreviewWithBlankOperand();
+}
+
+// Initialize tutorial
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('Tutorial initializing...');
+    
+    // Initialize patterns module
+    initializePrimitiveIcons();
+    
+    // Setup tutorial UI
+    const totalSpan = document.getElementById('tutorialTotal');
+    if (totalSpan) totalSpan.textContent = tutorialSteps.length;
+    
+    const nextBtn = document.getElementById('tutorialNextBtn');
+    if (nextBtn) nextBtn.addEventListener('click', handleTutorialNext);
+    
+    // Initialize state
+    currentPattern = geomDSL.blank();
+    targetPattern = geomDSL.square(); // Dummy target for tutorial
+    renderPattern(currentPattern, 'workspace');
+    
+    // Initialize UI
+    updateOperationsLog();
+    updateAllButtonStates();
+    updateInlinePreviewPanel();
+    renderWorkflow();
+    
+    // Show first tutorial step
+    showTutorialStep(0);
+    
+    console.log('Tutorial initialized');
 });

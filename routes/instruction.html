@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pattern DSL Experiment - Instructions</title>
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body class="dark-page">
+    <!-- Page 1: Welcome -->
+    <div id="page1" class="instruction-page">
+        <h1>Pattern Programming Experiment</h1>
+        <div class="instruction">
+            <h2>Welcome!</h2>
+            <p>In this experiment, you'll be solving visual puzzles by creating simple programs. Think of yourself as a designer who needs to recreate target patterns using basic building blocks and operations.</p>
+            
+            <p>You'll see <strong>18 target patterns</strong> displayed on a 10×10 grid. Your job is to recreate each pattern exactly by composing a program using:</p>
+            <ul>
+                <li><strong>Primitive shapes</strong> (lines, squares, triangles, etc.)</li>
+                <li><strong>Operations</strong> (add, subtract, union, flip, etc.)</li>
+            </ul>
+            
+            <p>When your program creates a pattern that <strong>exactly matches</strong> the target, you'll earn bonus points!</p>
+        </div>
+        <div class="button-group">
+            <button class="big-button" id="next-page-btn">Next page >></button>
+        </div>
+    </div>
+
+    <!-- Page 2: How It Works -->
+    <div id="page2" class="instruction-page" style="display: none;">
+        <h1>Pattern Programming Experiment</h1>
+        <div class="instruction">
+            <h2>How It Works</h2>
+            <p class="spacebar-hint" style="color: #fbbf24; font-style: italic; margin-bottom: 1rem;">
+                ⌨️ Press space bar to show each line in this section
+            </p>
+            
+            <div id="progressive-content">
+                <div class="content-line hidden">
+                    <h3>Building Your Program</h3>
+                </div>
+                <div class="content-line hidden">
+                    <ol>
+                        <li>Select shapes and operations from the menu</li>
+                    </ol>
+                </div>
+                <div class="content-line hidden">
+                    <ol start="2">
+                        <li>Watch your pattern update in real-time as you build</li>
+                    </ol>
+                </div>
+                <div class="content-line hidden">
+                    <ol start="3">
+                        <li>Preview your result before submitting</li>
+                    </ol>
+                </div>
+                <div class="content-line hidden">
+                    <ol start="4">
+                        <li>Submit when you've matched the target exactly</li>
+                    </ol>
+                </div>
+                
+                <div class="content-line hidden">
+                    <h3>Creating Reusable Building Blocks</h3>
+                </div>
+                <div class="content-line hidden">
+                    <p>Here's where it gets interesting: as you work, you might notice that certain patterns or sub-patterns could be useful later.</p>
+                </div>
+                <div class="content-line hidden">
+                    <p>You can save any program you create to your personal collection:</p>
+                </div>
+                <div class="content-line hidden">
+                    <ul>
+                        <li>Saved programs appear as visual thumbnails you can see and select</li>
+                    </ul>
+                </div>
+                <div class="content-line hidden">
+                    <ul>
+                        <li>These saved programs carry forward to all future tasks</li>
+                    </ul>
+                </div>
+                <div class="content-line hidden">
+                    <ul>
+                        <li>You can use them as building blocks in more complex patterns</li>
+                    </ul>
+                </div>
+                <div class="content-line hidden">
+                    <ul>
+                        <li>Think of them as creating your own custom "super-shapes"</li>
+                    </ul>
+                </div>
+                
+                <div class="content-line hidden">
+                    <div style="background: #1f2937; padding: 1.25rem; border-left: 4px solid #f59e0b; border-radius: 4px; margin: 1.5rem 0;">
+                        <p style="margin: 0; color: #fbbf24;"><strong>Strategy tip:</strong> The patterns get progressively more complex. Programs you save early on might become useful shortcuts later!</p>
+                    </div>
+                </div>
+                
+                <div class="content-line hidden">
+                    <p>We're interested in understanding how people break down complex visual problems and build reusable solutions. There are no right or wrong approaches—work in whatever way feels natural to you.</p>
+                </div>
+                <div class="content-line hidden">
+                    <ul>
+                        <li>There's <strong>no time limit</strong>—work at your own pace</li>
+                    </ul>
+                </div>
+                <div class="content-line hidden">
+                    <ul>
+                        <li>Program length doesn't matter—use as many or as few steps as you need</li>
+                    </ul>
+                </div>
+                <div class="content-line hidden">
+                    <ul>
+                        <li>You'll see your progress (Pattern x of 18) throughout</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="button-group">
+            <button class="big-button" id="page2-next-btn">Next page >></button>
+        </div>
+    </div>
+
+    <!-- Page 3: Next Steps -->
+    <div id="page3" class="instruction-page" style="display: none;">
+        <h1>Pattern Programming Experiment</h1>
+        <div class="instruction">
+            <h2>Next Steps</h2>
+            <p>You'll start with an interactive tutorial that shows you:</p>
+            <ul>
+                <li>All available shapes and operations</li>
+                <li>How to use the interface</li>
+                <li>How to save and reuse programs</li>
+            </ul>
+            
+            <p style="margin-top: 2rem;"><strong>Ready to begin? Let's start with the tutorial!</strong></p>
+        </div>
+        <div class="button-group">
+            <button class="big-button" id="tutorial-btn">Start Tutorial >></button>
+        </div>
+    </div>
+    
+    <script src="../js/instruction.js"></script>
+</body>
+</html>
