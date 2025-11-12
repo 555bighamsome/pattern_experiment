@@ -205,6 +205,24 @@ body {
     background: #555;
 }
 
+#consent-info h3 {
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+#consent-info ul, #consent-info ol {
+    margin-left: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+#consent-info li {
+    margin-bottom: 0.5rem;
+    line-height: 1.6;
+}
+
 #consent-info a {
     color: #2563eb;
     text-decoration: none;
