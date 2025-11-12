@@ -20,9 +20,6 @@ import {
     shuffleArray,
     getTestCaseCount
 } from './modules/testData.js';
-import { startEthics } from './modules/ethics.js';
-import { startInstructions } from './modules/instruction.js';
-import { startComprehension } from './modules/comprehension.js';
 
 // (favorites popup legacy removed)
 
@@ -372,41 +369,6 @@ function resolveUnaryOperandSource() {
         pattern: geomDSL.blank(),
         origin: 'workspace'
     };
-}
-// preview removed; operations commit immediately
-
-async function startExperiment() {
-    // Complete instruction flow: Ethics → Instructions → Comprehension
-    await startEthics();
-    await startInstructions();
-    await startComprehension();
-    
-    allTrialsData = [];
-    shouldRandomize = document.getElementById('randomizeOrder').checked;
-    
-    testOrder = Array.from({length: getTestCaseCount()}, (_, i) => i);
-    if (shouldRandomize) {
-        testOrder = shuffleArray(testOrder);
-    }
-    
-    document.getElementById('welcomeScreen').style.display = 'none';
-    document.getElementById('experimentContent').classList.remove('hidden');
-
-    const totalTrials = testOrder.length;
-    pointsPerCorrect = totalTrials > 0 ? POINTS_MAX / totalTrials : POINTS_MAX;
-    totalPoints = 0;
-    updatePointsDisplay();
-    
-    allTrialsData.push({
-        metadata: {
-            randomized: shouldRandomize,
-            order: testOrder,
-            pointsMax: POINTS_MAX,
-            pointsPerCorrect
-        }
-    });
-    
-    loadTrial(0);
 }
 
 function loadTrial(index) {
@@ -1602,7 +1564,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 Object.assign(globalScope, {
-    startExperiment,
     selectBinaryOp,
     applyTransform,
     applyPrimitive,

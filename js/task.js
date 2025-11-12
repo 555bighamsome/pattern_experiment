@@ -20,6 +20,30 @@ import {
     shuffleArray,
     getTestCaseCount
 } from './modules/testData.js';
+import {
+    experimentMetadata,
+    createTrialRecord,
+    createBuildStep,
+    createOperandInfo,
+    createFavoriteAction,
+    saveToSessionStorage,
+    loadFromSessionStorage,
+    downloadDataFile,
+    setExperimentStart,
+    setExperimentEnd,
+    setTrialOrder,
+    setPointsConfig,
+    startAutoSave,
+    stopAutoSave,
+    setupUnloadProtection
+} from './modules/dataCollection.js';
+import {
+    recordBinaryOperation,
+    recordUnaryOperation,
+    recordPrimitiveOperation,
+    recordFavoriteAction,
+    snapshotFavorites
+} from './modules/dataCollectionHelpers.js';
 
 // (favorites popup legacy removed)
 
@@ -43,6 +67,13 @@ function formatPoints(value) {
 }
 
 function showCompletionModal() {
+    // Enhanced data collection: finalize experiment
+    setExperimentEnd();
+    stopAutoSave();
+    
+    // Auto-download data file
+    downloadDataFile(allTrialsData);
+    
     const modal = document.getElementById('completionModal');
     if (!modal) return;
     const pointsEl = document.getElementById('finalPointsValue');
@@ -97,10 +128,31 @@ function addFavoriteFromEntry(entry) {
         createdAt: Date.now()
     };
     favorites.push(snapshot);
+    
+    // Enhanced data collection: record favorite addition
+    const stepId = entry.id || `s${Date.now()}_${Math.floor(Math.random()*1000)}`;
+    recordFavoriteAction(
+        currentTrialRecord,
+        allTrialsData,
+        'add',
+        id,
+        stepId,
+        pattern
+    );
 }
 
 function removeFavoriteById(id) {
     favorites = favorites.filter(f => f.id !== id);
+    
+    // Enhanced data collection: record favorite removal
+    recordFavoriteAction(
+        currentTrialRecord,
+        allTrialsData,
+        'remove',
+        id,
+        null,
+        null
+    );
 }
 
 function toggleFavoriteFromWorkflow(idx) {
@@ -375,28 +427,35 @@ function resolveUnaryOperandSource() {
 function startExperiment() {
     allTrialsData = [];
     
+    // Initialize experiment metadata
+    setExperimentStart();
+    
     // No randomization option in task page - can be added as URL parameter if needed
     const urlParams = new URLSearchParams(window.location.search);
     const shouldRandomize = urlParams.get('randomize') === 'true';
+    experimentMetadata.config.randomized = shouldRandomize;
     
     testOrder = Array.from({length: getTestCaseCount()}, (_, i) => i);
     if (shouldRandomize) {
         testOrder = shuffleArray(testOrder);
     }
+    
+    // Save trial order to metadata
+    setTrialOrder(testOrder);
 
     const totalTrials = testOrder.length;
     pointsPerCorrect = totalTrials > 0 ? POINTS_MAX / totalTrials : POINTS_MAX;
     totalPoints = 0;
     updatePointsDisplay();
     
-    allTrialsData.push({
-        metadata: {
-            randomized: shouldRandomize,
-            order: testOrder,
-            pointsMax: POINTS_MAX,
-            pointsPerCorrect
-        }
-    });
+    // Save points configuration
+    setPointsConfig(POINTS_MAX, pointsPerCorrect);
+    
+    // Start auto-save mechanism (every 30 seconds)
+    startAutoSave(() => allTrialsData);
+    
+    // Setup page unload protection
+    setupUnloadProtection(() => allTrialsData);
     
     loadTrial(0);
 }
@@ -423,23 +482,18 @@ function loadTrial(index) {
         basePattern: previewBackupPattern?.pattern
     });
     trialStartTime = Date.now();
-    // create a detailed trial record and push to allTrialsData
-    currentTrialRecord = {
-        trial: currentTestIndex + 1,
-        actualProblemIndex: actualIndex,
-        testName: testCases[actualIndex].name,
-        steps: [], // will be populated by addOperation
-        operations: [], // summary operation strings
-        stepsCount: 0,
-        timeSpent: 0,
-        success: null,
-        skipped: false,
-        submitted: false,
-        pointsEarned: 0,
-        pointsAwarded: 0,
-        startedAt: trialStartTime
-    };
+    // create a detailed trial record using the new data collection module
+    currentTrialRecord = createTrialRecord(
+        currentTestIndex + 1,
+        actualIndex,
+        testCases[actualIndex].name
+    );
+    // Set target pattern
+    currentTrialRecord.targetPattern = JSON.parse(JSON.stringify(targetPattern));
     allTrialsData.push(currentTrialRecord);
+    
+    // Save to session storage
+    saveToSessionStorage(allTrialsData);
     
     updateProgressUI(currentTestIndex);
 
@@ -1003,6 +1057,21 @@ function applySelectedBinary() {
     last.opFn = pendingBinaryOp;
     last.operands = { a: a, b: b };
     
+    // Enhanced data collection
+    const { aSource, bSource } = resolveBinaryOperandSources();
+    recordBinaryOperation(
+        currentTrialRecord,
+        allTrialsData,
+        pendingBinaryOp,
+        aSource,
+        bSource,
+        a,
+        b,
+        currentPattern,
+        labelA,
+        labelB
+    );
+    
     // Clear selections - don't auto-select the result
     workflowSelections = [];
 
@@ -1203,6 +1272,18 @@ function applySelectedUnary() {
         : null;
     last.operands = { input: operandCopy };
     last.operandSource = operandSourceMeta;
+
+    // Enhanced data collection
+    const source = resolveUnaryOperandSource();
+    recordUnaryOperation(
+        currentTrialRecord,
+        allTrialsData,
+        pendingUnaryOp,
+        source,
+        operandCopy,
+        currentPattern,
+        operandLabel
+    );
 
     workflowSelections = [];
     clearUnaryPreview();
@@ -1487,6 +1568,17 @@ function submitAnswer() {
         currentTrialRecord.pointsEarned = trialEarned;
         currentTrialRecord.pointsAwarded = pointsAwardedThisSubmission;
         currentTrialRecord.totalPointsAfter = Math.round(totalPoints);
+        
+        // Enhanced data collection: finalize trial record
+        currentTrialRecord.submittedAt = Date.now();
+        currentTrialRecord.finalPattern = JSON.parse(JSON.stringify(currentPattern));
+        currentTrialRecord.exactMatch = match;
+        
+        // Snapshot favorites state at trial end
+        snapshotFavorites(currentTrialRecord, allTrialsData, favorites);
+        
+        // Save to session storage
+        saveToSessionStorage(allTrialsData);
     }
 
     // Show centered modal feedback
@@ -1588,9 +1680,10 @@ function registerKeyboardShortcuts() {
     document.addEventListener('keydown', handleExperimentShortcut);
 }
 
-// Run on initial load: default-select add and update UI
+// Run on initial load: initialize and auto-start
 document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
+    startExperiment();
 });
 
 Object.assign(globalScope, {
@@ -1604,9 +1697,4 @@ Object.assign(globalScope, {
     addLastToFavorites,
     undoLast,
     resetWorkspace
-});
-
-// Auto-start experiment when task page loads
-document.addEventListener('DOMContentLoaded', () => {
-    startExperiment();
 });
