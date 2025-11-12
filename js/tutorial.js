@@ -135,9 +135,33 @@ function addFavoriteFromEntry(entry) {
         createdAt: Date.now()
     };
     favorites.push(snapshot);
+    
+    // Record favorite addition for cognitive abstraction analysis
+    if (currentTrialRecord) {
+        if (!currentTrialRecord.favoriteActions) {
+            currentTrialRecord.favoriteActions = [];
+        }
+        currentTrialRecord.favoriteActions.push({
+            action: 'add',
+            favoriteId: id,
+            timestamp: Date.now()
+        });
+    }
 }
 
 function removeFavoriteById(id) {
+    // Record favorite removal for cognitive abstraction analysis
+    if (currentTrialRecord) {
+        if (!currentTrialRecord.favoriteActions) {
+            currentTrialRecord.favoriteActions = [];
+        }
+        currentTrialRecord.favoriteActions.push({
+            action: 'remove',
+            favoriteId: id,
+            timestamp: Date.now()
+        });
+    }
+    
     favorites = favorites.filter(f => f.id !== id);
 }
 
@@ -217,6 +241,19 @@ function renderFavoritesShelf() {
 }
 
 function useFavoritePattern(id, pattern) {
+    // Record favorite usage for cognitive analysis
+    if (currentTrialRecord) {
+        if (!currentTrialRecord.favoriteActions) {
+            currentTrialRecord.favoriteActions = [];
+        }
+        currentTrialRecord.favoriteActions.push({
+            action: 'use',
+            favoriteId: id,
+            context: pendingBinaryOp ? 'binary' : (pendingUnaryOp ? 'unary' : 'none'),
+            timestamp: Date.now()
+        });
+    }
+    
     let filled = null;
     if (pendingBinaryOp) {
         const { aSource, bSource } = resolveBinaryOperandSources();
@@ -614,12 +651,21 @@ function addOperation(op) {
     operationsHistory.push(entry);
     // also append a step record into the current trial record if present
     if (currentTrialRecord) {
+        const now = Date.now();
         const stepEntry = {
-            id: `s${Date.now()}_${Math.floor(Math.random()*1000)}`,
+            id: `s${now}_${Math.floor(Math.random()*1000)}`,
             operation: op,
             pattern: JSON.parse(JSON.stringify(currentPattern)),
-            timestamp: Date.now()
+            timestamp: now,
+            intervalFromLast: 0  // Calculate interval from last step
         };
+        
+        // Calculate time since last step for cognitive latency analysis
+        if (currentTrialRecord.steps.length > 0) {
+            const lastStep = currentTrialRecord.steps[currentTrialRecord.steps.length - 1];
+            stepEntry.intervalFromLast = now - lastStep.timestamp;
+        }
+        
         currentTrialRecord.steps.push(stepEntry);
         currentTrialRecord.operations.push(op);
         currentTrialRecord.stepsCount = currentTrialRecord.steps.length;
@@ -841,6 +887,19 @@ function renderWorkflow() {
 }
 
 function onWorkflowClick(idx) {
+    // Record workflow interaction for cognitive navigation analysis
+    if (currentTrialRecord) {
+        if (!currentTrialRecord.workflowActions) {
+            currentTrialRecord.workflowActions = [];
+        }
+        currentTrialRecord.workflowActions.push({
+            action: 'click',
+            index: idx,
+            mode: pendingBinaryOp ? 'binary' : (pendingUnaryOp ? 'unary' : 'normal'),
+            timestamp: Date.now()
+        });
+    }
+    
     // In binary mode: toggle selection for operands
     // In normal mode: load pattern and clear old selections
     
@@ -883,6 +942,20 @@ function onWorkflowClick(idx) {
 }
 
 function toggleWorkflowSelection(idx) {
+    // Record workflow selection toggle for cognitive navigation analysis
+    if (currentTrialRecord) {
+        if (!currentTrialRecord.workflowActions) {
+            currentTrialRecord.workflowActions = [];
+        }
+        const isCurrentlySelected = workflowSelections.indexOf(idx) !== -1;
+        currentTrialRecord.workflowActions.push({
+            action: isCurrentlySelected ? 'deselect' : 'select',
+            index: idx,
+            currentSelections: [...workflowSelections],
+            timestamp: Date.now()
+        });
+    }
+    
     const pos = workflowSelections.indexOf(idx);
     if (pos === -1) {
         // allow up to 2 selections, preserve click order
@@ -1249,6 +1322,18 @@ function applySelectedUnary() {
 }
 
 function confirmPendingOperation() {
+    // Record preview confirmation for cognitive planning analysis
+    if (currentTrialRecord && (pendingBinaryOp || pendingUnaryOp)) {
+        if (!currentTrialRecord.previewActions) {
+            currentTrialRecord.previewActions = [];
+        }
+        currentTrialRecord.previewActions.push({
+            action: 'confirm',
+            operationType: pendingBinaryOp ? pendingBinaryOp : pendingUnaryOp,
+            timestamp: Date.now()
+        });
+    }
+    
     if (pendingBinaryOp) {
         applySelectedBinary();
     } else if (pendingUnaryOp) {
@@ -1259,6 +1344,18 @@ function confirmPendingOperation() {
 }
 
 function resetPendingOperation() {
+    // Record preview cancellation for cognitive planning analysis
+    if (currentTrialRecord && (pendingBinaryOp || pendingUnaryOp)) {
+        if (!currentTrialRecord.previewActions) {
+            currentTrialRecord.previewActions = [];
+        }
+        currentTrialRecord.previewActions.push({
+            action: 'cancel',
+            operationType: pendingBinaryOp ? pendingBinaryOp : pendingUnaryOp,
+            timestamp: Date.now()
+        });
+    }
+    
     if (pendingBinaryOp) {
         if (previewBackupPattern && previewBackupPattern.pattern) {
             currentPattern = JSON.parse(JSON.stringify(previewBackupPattern.pattern));
@@ -1436,6 +1533,19 @@ function updateInlinePreviewPanel() {
 
 function undoLast() {
     if (operationsHistory.length > 0) {
+        // Record undo action for cognitive error correction analysis
+        if (currentTrialRecord) {
+            if (!currentTrialRecord.undoActions) {
+                currentTrialRecord.undoActions = [];
+            }
+            const undoneStep = operationsHistory[operationsHistory.length - 1];
+            currentTrialRecord.undoActions.push({
+                action: 'undo',
+                undoneOperation: undoneStep ? undoneStep.operation : 'unknown',
+                timestamp: Date.now()
+            });
+        }
+        
         operationsHistory.pop();
         // Clear workflow selections that reference removed items
         workflowSelections = workflowSelections.filter(idx => idx < operationsHistory.length);
@@ -1471,6 +1581,18 @@ function seedAddPreviewWithBlankOperand() {
 }
 
 function resetWorkspace() {
+    // Record reset action for cognitive error correction analysis
+    if (currentTrialRecord) {
+        if (!currentTrialRecord.undoActions) {
+            currentTrialRecord.undoActions = [];
+        }
+        currentTrialRecord.undoActions.push({
+            action: 'reset',
+            stepsCleared: operationsHistory.length,
+            timestamp: Date.now()
+        });
+    }
+    
     currentPattern = geomDSL.blank();
     renderPattern(currentPattern, 'workspace');
     operationsHistory = [];

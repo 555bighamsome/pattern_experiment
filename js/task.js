@@ -20,30 +20,6 @@ import {
     shuffleArray,
     getTestCaseCount
 } from './modules/testData.js';
-import {
-    experimentMetadata,
-    createTrialRecord,
-    createBuildStep,
-    createOperandInfo,
-    createFavoriteAction,
-    saveToSessionStorage,
-    loadFromSessionStorage,
-    downloadDataFile,
-    setExperimentStart,
-    setExperimentEnd,
-    setTrialOrder,
-    setPointsConfig,
-    startAutoSave,
-    stopAutoSave,
-    setupUnloadProtection
-} from './modules/dataCollection.js';
-import {
-    recordBinaryOperation,
-    recordUnaryOperation,
-    recordPrimitiveOperation,
-    recordFavoriteAction,
-    snapshotFavorites
-} from './modules/dataCollectionHelpers.js';
 
 // (favorites popup legacy removed)
 
@@ -67,13 +43,6 @@ function formatPoints(value) {
 }
 
 function showCompletionModal() {
-    // Enhanced data collection: finalize experiment
-    setExperimentEnd();
-    stopAutoSave();
-    
-    // Auto-download data file
-    downloadDataFile(allTrialsData);
-    
     const modal = document.getElementById('completionModal');
     if (!modal) return;
     const pointsEl = document.getElementById('finalPointsValue');
@@ -129,38 +98,34 @@ function addFavoriteFromEntry(entry) {
     };
     favorites.push(snapshot);
     
-    // Enhanced data collection: record favorite addition (with error handling)
-    try {
-        const stepId = entry.id || `s${Date.now()}_${Math.floor(Math.random()*1000)}`;
-        recordFavoriteAction(
-            currentTrialRecord,
-            allTrialsData,
-            'add',
-            id,
-            stepId,
-            pattern
-        );
-    } catch (e) {
-        console.warn('Data collection error:', e);
+    // Record favorite action for cognitive analysis
+    if (currentTrialRecord) {
+        if (!currentTrialRecord.favoriteActions) {
+            currentTrialRecord.favoriteActions = [];
+        }
+        currentTrialRecord.favoriteActions.push({
+            action: 'add',
+            favoriteId: id,
+            operation: entry.operation,
+            timestamp: Date.now()
+        });
     }
 }
 
 function removeFavoriteById(id) {
-    favorites = favorites.filter(f => f.id !== id);
-    
-    // Enhanced data collection: record favorite removal (with error handling)
-    try {
-        recordFavoriteAction(
-            currentTrialRecord,
-            allTrialsData,
-            'remove',
-            id,
-            null,
-            null
-        );
-    } catch (e) {
-        console.warn('Data collection error:', e);
+    // Record favorite removal for cognitive analysis
+    if (currentTrialRecord) {
+        if (!currentTrialRecord.favoriteActions) {
+            currentTrialRecord.favoriteActions = [];
+        }
+        currentTrialRecord.favoriteActions.push({
+            action: 'remove',
+            favoriteId: id,
+            timestamp: Date.now()
+        });
     }
+    
+    favorites = favorites.filter(f => f.id !== id);
 }
 
 function toggleFavoriteFromWorkflow(idx) {
@@ -239,6 +204,19 @@ function renderFavoritesShelf() {
 }
 
 function useFavoritePattern(id, pattern) {
+    // Record favorite usage for cognitive analysis
+    if (currentTrialRecord) {
+        if (!currentTrialRecord.favoriteActions) {
+            currentTrialRecord.favoriteActions = [];
+        }
+        currentTrialRecord.favoriteActions.push({
+            action: 'use',
+            favoriteId: id,
+            context: pendingBinaryOp ? 'binary' : (pendingUnaryOp ? 'unary' : 'none'),
+            timestamp: Date.now()
+        });
+    }
+    
     let filled = null;
     if (pendingBinaryOp) {
         const { aSource, bSource } = resolveBinaryOperandSources();
@@ -435,35 +413,28 @@ function resolveUnaryOperandSource() {
 function startExperiment() {
     allTrialsData = [];
     
-    // Initialize experiment metadata
-    setExperimentStart();
-    
     // No randomization option in task page - can be added as URL parameter if needed
     const urlParams = new URLSearchParams(window.location.search);
     const shouldRandomize = urlParams.get('randomize') === 'true';
-    experimentMetadata.config.randomized = shouldRandomize;
     
     testOrder = Array.from({length: getTestCaseCount()}, (_, i) => i);
     if (shouldRandomize) {
         testOrder = shuffleArray(testOrder);
     }
-    
-    // Save trial order to metadata
-    setTrialOrder(testOrder);
 
     const totalTrials = testOrder.length;
     pointsPerCorrect = totalTrials > 0 ? POINTS_MAX / totalTrials : POINTS_MAX;
     totalPoints = 0;
     updatePointsDisplay();
     
-    // Save points configuration
-    setPointsConfig(POINTS_MAX, pointsPerCorrect);
-    
-    // Start auto-save mechanism (every 30 seconds)
-    startAutoSave(() => allTrialsData);
-    
-    // Setup page unload protection
-    setupUnloadProtection(() => allTrialsData);
+    allTrialsData.push({
+        metadata: {
+            randomized: shouldRandomize,
+            order: testOrder,
+            pointsMax: POINTS_MAX,
+            pointsPerCorrect
+        }
+    });
     
     loadTrial(0);
 }
@@ -490,18 +461,23 @@ function loadTrial(index) {
         basePattern: previewBackupPattern?.pattern
     });
     trialStartTime = Date.now();
-    // create a detailed trial record using the new data collection module
-    currentTrialRecord = createTrialRecord(
-        currentTestIndex + 1,
-        actualIndex,
-        testCases[actualIndex].name
-    );
-    // Set target pattern
-    currentTrialRecord.targetPattern = JSON.parse(JSON.stringify(targetPattern));
+    // create a detailed trial record and push to allTrialsData
+    currentTrialRecord = {
+        trial: currentTestIndex + 1,
+        actualProblemIndex: actualIndex,
+        testName: testCases[actualIndex].name,
+        steps: [], // will be populated by addOperation
+        operations: [], // summary operation strings
+        stepsCount: 0,
+        timeSpent: 0,
+        success: null,
+        skipped: false,
+        submitted: false,
+        pointsEarned: 0,
+        pointsAwarded: 0,
+        startedAt: trialStartTime
+    };
     allTrialsData.push(currentTrialRecord);
-    
-    // Save to session storage
-    saveToSessionStorage(allTrialsData);
     
     updateProgressUI(currentTestIndex);
 
@@ -630,10 +606,17 @@ function applyTransform(name) {
 
 function addOperation(op) {
     // default: simple operation entry
+    const now = Date.now();
+    const lastTimestamp = operationsHistory.length > 0 
+        ? operationsHistory[operationsHistory.length - 1].timestamp 
+        : trialStartTime;
+    const interval = now - lastTimestamp;
+    
     const entry = {
         operation: op,
         pattern: JSON.parse(JSON.stringify(currentPattern)),
-        timestamp: Date.now()
+        timestamp: now,
+        intervalFromLast: interval  // Time since last operation (ms)
     };
     operationsHistory.push(entry);
     // also append a step record into the current trial record if present
@@ -642,7 +625,8 @@ function addOperation(op) {
             id: `s${Date.now()}_${Math.floor(Math.random()*1000)}`,
             operation: op,
             pattern: JSON.parse(JSON.stringify(currentPattern)),
-            timestamp: Date.now()
+            timestamp: now,
+            intervalFromLast: interval  // Time since last operation (ms)
         };
         currentTrialRecord.steps.push(stepEntry);
         currentTrialRecord.operations.push(op);
@@ -865,6 +849,19 @@ function renderWorkflow() {
 }
 
 function onWorkflowClick(idx) {
+    // Record workflow interaction for cognitive navigation analysis
+    if (currentTrialRecord) {
+        if (!currentTrialRecord.workflowActions) {
+            currentTrialRecord.workflowActions = [];
+        }
+        currentTrialRecord.workflowActions.push({
+            action: 'click',
+            index: idx,
+            mode: pendingBinaryOp ? 'binary' : (pendingUnaryOp ? 'unary' : 'normal'),
+            timestamp: Date.now()
+        });
+    }
+    
     // In binary mode: toggle selection for operands
     // In normal mode: load pattern and clear old selections
     
@@ -907,6 +904,20 @@ function onWorkflowClick(idx) {
 }
 
 function toggleWorkflowSelection(idx) {
+    // Record workflow selection toggle for cognitive navigation analysis
+    if (currentTrialRecord) {
+        if (!currentTrialRecord.workflowActions) {
+            currentTrialRecord.workflowActions = [];
+        }
+        const isCurrentlySelected = workflowSelections.indexOf(idx) !== -1;
+        currentTrialRecord.workflowActions.push({
+            action: isCurrentlySelected ? 'deselect' : 'select',
+            index: idx,
+            currentSelections: [...workflowSelections],
+            timestamp: Date.now()
+        });
+    }
+    
     const pos = workflowSelections.indexOf(idx);
     if (pos === -1) {
         // allow up to 2 selections, preserve click order
@@ -1064,25 +1075,6 @@ function applySelectedBinary() {
     const last = operationsHistory[operationsHistory.length - 1];
     last.opFn = pendingBinaryOp;
     last.operands = { a: a, b: b };
-    
-    // Enhanced data collection (with error handling)
-    try {
-        const { aSource, bSource } = resolveBinaryOperandSources();
-        recordBinaryOperation(
-            currentTrialRecord,
-            allTrialsData,
-            pendingBinaryOp,
-            aSource,
-            bSource,
-            a,
-            b,
-            currentPattern,
-            labelA,
-            labelB
-        );
-    } catch (e) {
-        console.warn('Data collection error:', e);
-    }
     
     // Clear selections - don't auto-select the result
     workflowSelections = [];
@@ -1285,22 +1277,6 @@ function applySelectedUnary() {
     last.operands = { input: operandCopy };
     last.operandSource = operandSourceMeta;
 
-    // Enhanced data collection (with error handling)
-    try {
-        const source = resolveUnaryOperandSource();
-        recordUnaryOperation(
-            currentTrialRecord,
-            allTrialsData,
-            pendingUnaryOp,
-            source,
-            operandCopy,
-            currentPattern,
-            operandLabel
-        );
-    } catch (e) {
-        console.warn('Data collection error:', e);
-    }
-
     workflowSelections = [];
     clearUnaryPreview();
     renderWorkflow();
@@ -1308,6 +1284,18 @@ function applySelectedUnary() {
 }
 
 function confirmPendingOperation() {
+    // Record preview confirmation for cognitive planning analysis
+    if (currentTrialRecord && (pendingBinaryOp || pendingUnaryOp)) {
+        if (!currentTrialRecord.previewActions) {
+            currentTrialRecord.previewActions = [];
+        }
+        currentTrialRecord.previewActions.push({
+            action: 'confirm',
+            operationType: pendingBinaryOp ? pendingBinaryOp : pendingUnaryOp,
+            timestamp: Date.now()
+        });
+    }
+    
     if (pendingBinaryOp) {
         applySelectedBinary();
     } else if (pendingUnaryOp) {
@@ -1318,6 +1306,18 @@ function confirmPendingOperation() {
 }
 
 function resetPendingOperation() {
+    // Record preview cancellation for cognitive planning analysis
+    if (currentTrialRecord && (pendingBinaryOp || pendingUnaryOp)) {
+        if (!currentTrialRecord.previewActions) {
+            currentTrialRecord.previewActions = [];
+        }
+        currentTrialRecord.previewActions.push({
+            action: 'cancel',
+            operationType: pendingBinaryOp ? pendingBinaryOp : pendingUnaryOp,
+            timestamp: Date.now()
+        });
+    }
+    
     if (pendingBinaryOp) {
         if (previewBackupPattern && previewBackupPattern.pattern) {
             currentPattern = JSON.parse(JSON.stringify(previewBackupPattern.pattern));
@@ -1495,7 +1495,21 @@ function updateInlinePreviewPanel() {
 
 function undoLast() {
     if (operationsHistory.length > 0) {
-        operationsHistory.pop();
+        const removed = operationsHistory.pop();
+        
+        // Record undo action for cognitive analysis
+        if (currentTrialRecord) {
+            if (!currentTrialRecord.undoActions) {
+                currentTrialRecord.undoActions = [];
+            }
+            currentTrialRecord.undoActions.push({
+                type: 'undo',
+                removedStep: removed.operation,
+                removedStepIndex: operationsHistory.length,
+                timestamp: Date.now()
+            });
+        }
+        
         // Clear workflow selections that reference removed items
         workflowSelections = workflowSelections.filter(idx => idx < operationsHistory.length);
         
@@ -1530,6 +1544,18 @@ function seedAddPreviewWithBlankOperand() {
 }
 
 function resetWorkspace() {
+    // Record reset action for cognitive analysis
+    if (currentTrialRecord) {
+        if (!currentTrialRecord.undoActions) {
+            currentTrialRecord.undoActions = [];
+        }
+        currentTrialRecord.undoActions.push({
+            type: 'reset',
+            stepsCleared: operationsHistory.length,
+            timestamp: Date.now()
+        });
+    }
+    
     currentPattern = geomDSL.blank();
     renderPattern(currentPattern, 'workspace');
     operationsHistory = [];
@@ -1584,21 +1610,6 @@ function submitAnswer() {
         currentTrialRecord.pointsEarned = trialEarned;
         currentTrialRecord.pointsAwarded = pointsAwardedThisSubmission;
         currentTrialRecord.totalPointsAfter = Math.round(totalPoints);
-        
-        // Enhanced data collection: finalize trial record (with error handling)
-        try {
-            currentTrialRecord.submittedAt = Date.now();
-            currentTrialRecord.finalPattern = JSON.parse(JSON.stringify(currentPattern));
-            currentTrialRecord.exactMatch = match;
-            
-            // Snapshot favorites state at trial end
-            snapshotFavorites(currentTrialRecord, allTrialsData, favorites);
-            
-            // Save to session storage
-            saveToSessionStorage(allTrialsData);
-        } catch (e) {
-            console.warn('Data collection error:', e);
-        }
     }
 
     // Show centered modal feedback
