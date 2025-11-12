@@ -55,6 +55,61 @@ function showCompletionModal() {
     }
     modal.style.display = 'flex';
 }
+
+function downloadExperimentData() {
+    // Prepare comprehensive experiment data
+    const experimentData = {
+        metadata: {
+            experimentName: 'Pattern DSL Experiment',
+            completionTime: new Date().toISOString(),
+            totalPoints: Math.round(totalPoints),
+            maxPoints: POINTS_MAX,
+            trialsCompleted: allTrialsData.length,
+            browserInfo: {
+                userAgent: navigator.userAgent,
+                language: navigator.language,
+                screenWidth: window.screen.width,
+                screenHeight: window.screen.height
+            }
+        },
+        trials: allTrialsData,
+        summary: {
+            totalSteps: allTrialsData.reduce((sum, trial) => sum + (trial.stepsCount || 0), 0),
+            successfulTrials: allTrialsData.filter(t => t.success).length,
+            totalTimeSpent: allTrialsData.reduce((sum, trial) => sum + (trial.timeSpent || 0), 0),
+            averageStepsPerTrial: allTrialsData.length > 0 
+                ? (allTrialsData.reduce((sum, trial) => sum + (trial.stepsCount || 0), 0) / allTrialsData.length).toFixed(2)
+                : 0
+        }
+    };
+
+    // Convert to JSON string with formatting
+    const jsonString = JSON.stringify(experimentData, null, 2);
+    
+    // Create blob and download
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    // Generate filename with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    link.download = `pattern_experiment_data_${timestamp}.json`;
+    link.href = url;
+    
+    // Trigger download
+    document.body.appendChild(link);
+    link.click();
+    
+    // Cleanup
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    showToast('Data downloaded successfully!', 'success', 2000);
+}
+
+// Make function globally accessible
+globalScope.downloadExperimentData = downloadExperimentData;
+
 // --- TUTORIAL STATE (removed) ---
 // Keep minimal stubs so the rest of the code can call without effects.
 // --- FAVORITES SYSTEM (persist across trials) ---

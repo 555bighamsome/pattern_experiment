@@ -152,6 +152,37 @@
                 <div class="feedback-message" id="feedbackMessage"></div>
             </div>
         </div>
+
+        <!-- Completion Modal -->
+        <div class="completion-modal" id="completionModal" style="display: none;">
+            <div class="completion-content">
+                <div class="completion-header">
+                    <h2>🎉 Experiment Complete!</h2>
+                </div>
+                <div class="completion-body">
+                    <p class="completion-message">
+                        Thank you for completing the experiment!
+                    </p>
+                    <div class="completion-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">Final Score:</span>
+                            <span class="stat-value">
+                                <span id="finalPointsValue">0</span> / <span id="finalPointsMax">100</span> points
+                            </span>
+                        </div>
+                    </div>
+                    <div class="completion-actions">
+                        <button class="btn btn-primary btn-large" id="downloadDataBtn" onclick="downloadExperimentData()">
+                            <span style="font-size: 1.2rem; margin-right: 0.5rem;">⬇</span>
+                            Download Your Data
+                        </button>
+                    </div>
+                    <p class="completion-note">
+                        Your data has been collected for research purposes. Click the button above to download a copy.
+                    </p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script type="module" src="../js/task.js"></script>
