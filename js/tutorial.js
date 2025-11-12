@@ -1581,8 +1581,8 @@ function submitAnswer() {
                 if (currentPracticeExercise < practiceExercises.length - 1) {
                     loadPracticeExercise(currentPracticeExercise + 1);
                 } else {
-                    // 练习完成，显示完成模态框
-                    showPracticeCompletionModal();
+                    // 练习完成，跳转到comprehension check
+                    location.href = 'comprehension.html';
                 }
             } else {
                 // 正式试验模式
@@ -1952,13 +1952,6 @@ function startPracticeMode() {
     loadPracticeExercise(0);
     
     showToast('Practice mode started!', 'success');
-}
-
-function showPracticeCompletionModal() {
-    const modal = document.getElementById('practiceCompletionModal');
-    if (modal) {
-        modal.style.display = 'flex';
-    }
 }
 
 // 完全复制task.js的loadTrial逻辑
