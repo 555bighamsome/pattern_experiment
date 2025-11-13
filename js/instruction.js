@@ -10,6 +10,11 @@ const spacebarHint = document.querySelector('.spacebar-hint');
 let currentLineIndex = 0;
 let currentPage = 1;
 
+// Initially disable page2 next button
+page2NextBtn.disabled = true;
+page2NextBtn.style.opacity = '0.5';
+page2NextBtn.style.cursor = 'not-allowed';
+
 // Page 1 -> Page 2
 nextPageBtn.onclick = () => {
     page1.style.display = 'none';
@@ -19,14 +24,8 @@ nextPageBtn.onclick = () => {
 
 // Page 2 -> Page 3 (only after all content is shown)
 page2NextBtn.onclick = () => {
-    // Check if all content has been revealed
-    if (currentLineIndex < contentLines.length) {
-        // Show all remaining lines instantly
-        while (currentLineIndex < contentLines.length) {
-            showNextLine();
-        }
-    } else {
-        // Proceed to page 3
+    // Only allow navigation if all lines have been shown
+    if (currentLineIndex >= contentLines.length) {
         page2.style.display = 'none';
         page3.style.display = 'block';
         currentPage = 3;
@@ -46,8 +45,19 @@ document.addEventListener('keydown', (e) => {
 
 function showNextLine() {
     if (currentLineIndex < contentLines.length) {
-        contentLines[currentLineIndex].classList.remove('hidden');
-        contentLines[currentLineIndex].classList.add('fade-in');
+        const currentLine = contentLines[currentLineIndex];
+        currentLine.classList.remove('hidden');
+        currentLine.classList.add('fade-in');
+        
+        // Smooth scroll to the newly revealed line
+        setTimeout(() => {
+            currentLine.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center',
+                inline: 'nearest'
+            });
+        }, 100);
+        
         currentLineIndex++;
         
         // Fade hint after first press
@@ -55,9 +65,23 @@ function showNextLine() {
             spacebarHint.style.opacity = '0.5';
         }
         
-        // Remove hint completely after all lines shown
-        if (currentLineIndex === contentLines.length && spacebarHint) {
-            spacebarHint.style.display = 'none';
+        // Enable next button and remove hint after all lines shown
+        if (currentLineIndex === contentLines.length) {
+            if (spacebarHint) {
+                spacebarHint.style.display = 'none';
+            }
+            // Enable the next page button
+            page2NextBtn.disabled = false;
+            page2NextBtn.style.opacity = '1';
+            page2NextBtn.style.cursor = 'pointer';
+            
+            // Scroll to the button after all content is shown
+            setTimeout(() => {
+                page2NextBtn.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'center'
+                });
+            }, 300);
         }
     }
 }
