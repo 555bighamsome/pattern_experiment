@@ -48,30 +48,87 @@ function showCompletionModal() {
     modal.style.display = 'flex';
 }
 
+function sanitizeTrialRecord(trial) {
+    if (!trial) return null;
+    if (trial.metadata) {
+        return {
+            metadata: {
+                randomized: !!trial.metadata.randomized,
+                order: Array.isArray(trial.metadata.order) ? trial.metadata.order : []
+            }
+        };
+    }
+
+    const mapSteps = (steps = []) => steps.map(step => ({
+        id: step.id,
+        operation: step.operation,
+        pattern: step.pattern,
+        timestamp: step.timestamp,
+        intervalFromLast: step.intervalFromLast,
+        opFn: step.opFn,
+        operands: step.operands
+    }));
+
+    const mapButtonActions = (actions = []) => actions.map(action => ({
+        buttonType: action.buttonType,
+        operation: action.operation,
+        context: action.context,
+        timestamp: action.timestamp
+    }));
+
+    const mapFavoriteActions = (actions = []) => actions.map(action => ({
+        action: action.action,
+        favoriteId: action.favoriteId,
+        operation: action.operation,
+        pattern: action.pattern,
+        opFn: action.opFn,
+        operands: action.operands,
+        context: action.context,
+        usedAs: action.usedAs,
+        timestamp: action.timestamp
+    }));
+
+    const mapUndoActions = (actions = []) => actions.map(action => ({
+        type: action.type,
+        stepsCleared: action.stepsCleared,
+        timestamp: action.timestamp
+    }));
+
+    return {
+        trial: trial.trial,
+        actualProblemIndex: trial.actualProblemIndex,
+        testName: trial.testName,
+        targetPattern: trial.targetPattern,
+        steps: mapSteps(trial.steps),
+        operations: Array.isArray(trial.operations) ? trial.operations : [],
+        buttonClickActions: mapButtonActions(trial.buttonClickActions),
+        favoriteActions: mapFavoriteActions(trial.favoriteActions),
+        undoActions: mapUndoActions(trial.undoActions),
+        stepsCount: trial.stepsCount,
+        timeSpent: trial.timeSpent,
+        success: trial.success,
+        skipped: trial.skipped,
+        submitted: trial.submitted,
+        startedAt: trial.startedAt
+    };
+}
+
 function downloadExperimentData() {
-    // Prepare comprehensive experiment data
+    const sanitizedTrials = allTrialsData
+        .map(sanitizeTrialRecord)
+        .filter(Boolean);
+
     const experimentData = {
         metadata: {
             experimentName: 'Pattern DSL Experiment',
             completionTime: new Date().toISOString(),
-            totalPoints: Math.round(totalPoints),
-            pointsPerTask: 10,
-            trialsCompleted: allTrialsData.length,
             browserInfo: {
-                userAgent: navigator.userAgent,
-                language: navigator.language,
-                screenWidth: window.screen.width,
-                screenHeight: window.screen.height
+                language: navigator.language
             }
         },
-        trials: allTrialsData,
+        trials: sanitizedTrials,
         summary: {
-            totalSteps: allTrialsData.reduce((sum, trial) => sum + (trial.stepsCount || 0), 0),
-            successfulTrials: allTrialsData.filter(t => t.success).length,
-            totalTimeSpent: allTrialsData.reduce((sum, trial) => sum + (trial.timeSpent || 0), 0),
-            averageStepsPerTrial: allTrialsData.length > 0 
-                ? (allTrialsData.reduce((sum, trial) => sum + (trial.stepsCount || 0), 0) / allTrialsData.length).toFixed(2)
-                : 0
+            successfulTrials: sanitizedTrials.filter(t => t && t.success === true).length
         }
     };
 
@@ -121,94 +178,6 @@ function patternsEqual(a, b) {
 }
 
 // Calculate visual features of a pattern for cognitive analysis
-function calculateVisualFeatures(pattern) {
-    if (!pattern || !Array.isArray(pattern)) return null;
-    
-    const height = pattern.length;
-    const width = pattern[0] ? pattern[0].length : 0;
-    
-    // Count non-zero cells
-    let nonZeroCount = 0;
-    let sumX = 0, sumY = 0;
-    
-    for (let i = 0; i < height; i++) {
-        for (let j = 0; j < width; j++) {
-            if (pattern[i][j] !== 0) {
-                nonZeroCount++;
-                sumX += j;
-                sumY += i;
-            }
-        }
-    }
-    
-    // Calculate center of mass
-    const centerOfMass = nonZeroCount > 0 ? {
-        x: (sumX / nonZeroCount).toFixed(2),
-        y: (sumY / nonZeroCount).toFixed(2)
-    } : { x: 0, y: 0 };
-    
-    // Calculate complexity (percentage of filled cells)
-    const complexity = ((nonZeroCount / (height * width)) * 100).toFixed(2);
-    
-    // Check symmetries
-    const hasVerticalSymmetry = checkVerticalSymmetry(pattern);
-    const hasHorizontalSymmetry = checkHorizontalSymmetry(pattern);
-    const hasDiagonalSymmetry = checkDiagonalSymmetry(pattern);
-    
-    return {
-        nonZeroCount: nonZeroCount,
-        complexity: parseFloat(complexity),
-        centerOfMass: centerOfMass,
-        symmetry: {
-            vertical: hasVerticalSymmetry,
-            horizontal: hasHorizontalSymmetry,
-            diagonal: hasDiagonalSymmetry
-        }
-    };
-}
-
-function checkVerticalSymmetry(pattern) {
-    const height = pattern.length;
-    const width = pattern[0] ? pattern[0].length : 0;
-    const midX = Math.floor(width / 2);
-    
-    for (let i = 0; i < height; i++) {
-        for (let j = 0; j < midX; j++) {
-            if (pattern[i][j] !== pattern[i][width - 1 - j]) {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-function checkHorizontalSymmetry(pattern) {
-    const height = pattern.length;
-    const midY = Math.floor(height / 2);
-    
-    for (let i = 0; i < midY; i++) {
-        for (let j = 0; j < pattern[i].length; j++) {
-            if (pattern[i][j] !== pattern[height - 1 - i][j]) {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-function checkDiagonalSymmetry(pattern) {
-    const size = Math.min(pattern.length, pattern[0] ? pattern[0].length : 0);
-    
-    for (let i = 0; i < size; i++) {
-        for (let j = 0; j < size; j++) {
-            if (pattern[i][j] !== pattern[j][i]) {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
 function isPatternFavorited(pattern) {
     return favorites.some(f => patternsEqual(f.pattern, pattern));
 }
@@ -240,9 +209,6 @@ function addFavoriteFromEntry(entry) {
             currentTrialRecord.favoriteActions = [];
         }
         
-        // Calculate visual features for cognitive analysis
-        const visualFeatures = calculateVisualFeatures(pattern);
-        
         currentTrialRecord.favoriteActions.push({
             action: 'add',
             favoriteId: id,
@@ -254,7 +220,6 @@ function addFavoriteFromEntry(entry) {
                 b: entry.operands.b ? JSON.parse(JSON.stringify(entry.operands.b)) : undefined,
                 input: entry.operands.input ? JSON.parse(JSON.stringify(entry.operands.input)) : undefined
             } : undefined,
-            visualFeatures: visualFeatures,
             timestamp: Date.now()
         });
     }
@@ -362,7 +327,6 @@ function useFavoritePattern(id, pattern) {
         }
         
         const context = pendingBinaryOp ? 'binary' : (pendingUnaryOp ? 'unary' : 'none');
-        const visualFeatures = calculateVisualFeatures(pattern);
         
         currentTrialRecord.favoriteActions.push({
             action: 'use',
@@ -376,7 +340,6 @@ function useFavoritePattern(id, pattern) {
                 b: favorite.meta.operands.b ? JSON.parse(JSON.stringify(favorite.meta.operands.b)) : undefined,
                 input: favorite.meta.operands.input ? JSON.parse(JSON.stringify(favorite.meta.operands.input)) : undefined
             } : undefined,
-            visualFeatures: visualFeatures,
             usedAs: context === 'binary' ? (inlinePreview.aPattern ? 'operandB' : 'operandA') : (context === 'unary' ? 'unaryInput' : 'unknown'),
             timestamp: Date.now()
         });

@@ -112,94 +112,6 @@ function patternsEqual(a, b) {
 }
 
 // Calculate visual features of a pattern for cognitive analysis
-function calculateVisualFeatures(pattern) {
-    if (!pattern || !Array.isArray(pattern)) return null;
-    
-    const height = pattern.length;
-    const width = pattern[0] ? pattern[0].length : 0;
-    
-    // Count non-zero cells
-    let nonZeroCount = 0;
-    let sumX = 0, sumY = 0;
-    
-    for (let i = 0; i < height; i++) {
-        for (let j = 0; j < width; j++) {
-            if (pattern[i][j] !== 0) {
-                nonZeroCount++;
-                sumX += j;
-                sumY += i;
-            }
-        }
-    }
-    
-    // Calculate center of mass
-    const centerOfMass = nonZeroCount > 0 ? {
-        x: (sumX / nonZeroCount).toFixed(2),
-        y: (sumY / nonZeroCount).toFixed(2)
-    } : { x: 0, y: 0 };
-    
-    // Calculate complexity (percentage of filled cells)
-    const complexity = ((nonZeroCount / (height * width)) * 100).toFixed(2);
-    
-    // Check symmetries
-    const hasVerticalSymmetry = checkVerticalSymmetry(pattern);
-    const hasHorizontalSymmetry = checkHorizontalSymmetry(pattern);
-    const hasDiagonalSymmetry = checkDiagonalSymmetry(pattern);
-    
-    return {
-        nonZeroCount: nonZeroCount,
-        complexity: parseFloat(complexity),
-        centerOfMass: centerOfMass,
-        symmetry: {
-            vertical: hasVerticalSymmetry,
-            horizontal: hasHorizontalSymmetry,
-            diagonal: hasDiagonalSymmetry
-        }
-    };
-}
-
-function checkVerticalSymmetry(pattern) {
-    const height = pattern.length;
-    const width = pattern[0] ? pattern[0].length : 0;
-    const midX = Math.floor(width / 2);
-    
-    for (let i = 0; i < height; i++) {
-        for (let j = 0; j < midX; j++) {
-            if (pattern[i][j] !== pattern[i][width - 1 - j]) {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-function checkHorizontalSymmetry(pattern) {
-    const height = pattern.length;
-    const midY = Math.floor(height / 2);
-    
-    for (let i = 0; i < midY; i++) {
-        for (let j = 0; j < pattern[i].length; j++) {
-            if (pattern[i][j] !== pattern[height - 1 - i][j]) {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-function checkDiagonalSymmetry(pattern) {
-    const size = Math.min(pattern.length, pattern[0] ? pattern[0].length : 0);
-    
-    for (let i = 0; i < size; i++) {
-        for (let j = 0; j < size; j++) {
-            if (pattern[i][j] !== pattern[j][i]) {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
 function isPatternFavorited(pattern) {
     return favorites.some(f => patternsEqual(f.pattern, pattern));
 }
@@ -231,9 +143,6 @@ function addFavoriteFromEntry(entry) {
             currentTrialRecord.favoriteActions = [];
         }
         
-        // Calculate visual features for cognitive analysis
-        const visualFeatures = calculateVisualFeatures(pattern);
-        
         currentTrialRecord.favoriteActions.push({
             action: 'add',
             favoriteId: id,
@@ -245,7 +154,6 @@ function addFavoriteFromEntry(entry) {
                 b: entry.operands.b ? JSON.parse(JSON.stringify(entry.operands.b)) : undefined,
                 input: entry.operands.input ? JSON.parse(JSON.stringify(entry.operands.input)) : undefined
             } : undefined,
-            visualFeatures: visualFeatures,
             timestamp: Date.now()
         });
     }
@@ -353,7 +261,6 @@ function useFavoritePattern(id, pattern) {
         }
         
         const context = pendingBinaryOp ? 'binary' : (pendingUnaryOp ? 'unary' : 'none');
-        const visualFeatures = calculateVisualFeatures(pattern);
         
         currentTrialRecord.favoriteActions.push({
             action: 'use',
@@ -367,7 +274,6 @@ function useFavoritePattern(id, pattern) {
                 b: favorite.meta.operands.b ? JSON.parse(JSON.stringify(favorite.meta.operands.b)) : undefined,
                 input: favorite.meta.operands.input ? JSON.parse(JSON.stringify(favorite.meta.operands.input)) : undefined
             } : undefined,
-            visualFeatures: visualFeatures,
             usedAs: context === 'binary' ? (inlinePreview.aPattern ? 'operandB' : 'operandA') : (context === 'unary' ? 'unaryInput' : 'unknown'),
             timestamp: Date.now()
         });
