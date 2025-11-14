@@ -10,7 +10,7 @@ const spacebarHint = document.querySelector('.spacebar-hint');
 let currentLineIndex = 0;
 let currentPage = 1;
 
-// Initially disable page2 next button
+// Initially disable the "Next page" button on page 2
 page2NextBtn.disabled = true;
 page2NextBtn.style.opacity = '0.5';
 page2NextBtn.style.cursor = 'not-allowed';
@@ -24,8 +24,8 @@ nextPageBtn.onclick = () => {
 
 // Page 2 -> Page 3 (only after all content is shown)
 page2NextBtn.onclick = () => {
-    // Only allow navigation if all lines have been shown
     if (currentLineIndex >= contentLines.length) {
+        // Proceed to page 3
         page2.style.display = 'none';
         page3.style.display = 'block';
         currentPage = 3;
@@ -48,40 +48,31 @@ function showNextLine() {
         const currentLine = contentLines[currentLineIndex];
         currentLine.classList.remove('hidden');
         currentLine.classList.add('fade-in');
+        currentLineIndex++;
         
-        // Smooth scroll to the newly revealed line
+        // Scroll to the newly revealed line
         setTimeout(() => {
-            currentLine.scrollIntoView({
-                behavior: 'smooth',
-                block: 'center',
-                inline: 'nearest'
+            currentLine.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'center'
             });
         }, 100);
-        
-        currentLineIndex++;
         
         // Fade hint after first press
         if (currentLineIndex === 1 && spacebarHint) {
             spacebarHint.style.opacity = '0.5';
         }
         
-        // Enable next button and remove hint after all lines shown
+        // Remove hint completely after all lines shown
+        if (currentLineIndex === contentLines.length && spacebarHint) {
+            spacebarHint.style.display = 'none';
+        }
+        
+        // Enable "Next page" button when all lines are shown
         if (currentLineIndex === contentLines.length) {
-            if (spacebarHint) {
-                spacebarHint.style.display = 'none';
-            }
-            // Enable the next page button
             page2NextBtn.disabled = false;
             page2NextBtn.style.opacity = '1';
             page2NextBtn.style.cursor = 'pointer';
-            
-            // Scroll to the button after all content is shown
-            setTimeout(() => {
-                page2NextBtn.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'center'
-                });
-            }, 300);
         }
     }
 }

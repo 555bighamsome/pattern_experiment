@@ -32,10 +32,6 @@ function updatePointsDisplay() {
         const rounded = Math.round(totalPoints);
         el.textContent = String(rounded);
     }
-    const maxEl = document.getElementById('pointsMaxValue');
-    if (maxEl) {
-        maxEl.textContent = String(POINTS_MAX);
-    }
 }
 
 function formatPoints(value) {
@@ -49,10 +45,6 @@ function showCompletionModal() {
     if (pointsEl) {
         pointsEl.textContent = String(Math.round(totalPoints));
     }
-    const maxEl = document.getElementById('finalPointsMax');
-    if (maxEl) {
-        maxEl.textContent = String(POINTS_MAX);
-    }
     modal.style.display = 'flex';
 }
 
@@ -63,7 +55,7 @@ function downloadExperimentData() {
             experimentName: 'Pattern DSL Experiment',
             completionTime: new Date().toISOString(),
             totalPoints: Math.round(totalPoints),
-            maxPoints: POINTS_MAX,
+            pointsPerTask: 10,
             trialsCompleted: allTrialsData.length,
             browserInfo: {
                 userAgent: navigator.userAgent,
@@ -478,7 +470,7 @@ function startExperiment() {
     }
 
     const totalTrials = testOrder.length;
-    pointsPerCorrect = totalTrials > 0 ? POINTS_MAX / totalTrials : POINTS_MAX;
+    pointsPerCorrect = 10; // Each task is worth 10 points
     totalPoints = 0;
     updatePointsDisplay();
     
@@ -486,8 +478,8 @@ function startExperiment() {
         metadata: {
             randomized: shouldRandomize,
             order: testOrder,
-            pointsMax: POINTS_MAX,
-            pointsPerCorrect
+            pointsPerTask: pointsPerCorrect,
+            totalTasks: totalTrials
         }
     });
     
@@ -696,6 +688,37 @@ function updateOperationsLog() {
     renderWorkflow();
 }
 
+// Lightweight update: only refresh selection highlights without rebuilding DOM
+function updateWorkflowSelectionHighlight() {
+    const workflow = document.getElementById('operationsLog');
+    if (!workflow) return;
+    
+    const entries = workflow.querySelectorAll('.operation-thumb');
+    entries.forEach((entry, idx) => {
+        if (workflowSelections.includes(idx)) {
+            entry.classList.add('selected');
+        } else {
+            entry.classList.remove('selected');
+        }
+        
+        // Update selection badges
+        const existingBadge = entry.querySelector('.selection-badge');
+        if (existingBadge) {
+            existingBadge.remove();
+        }
+        
+        const selPos = workflowSelections.indexOf(idx);
+        if (selPos !== -1) {
+            const badge = document.createElement('div');
+            badge.className = 'selection-badge';
+            badge.textContent = (selPos + 1).toString();
+            entry.appendChild(badge);
+        }
+    });
+    
+    updateInlinePreviewPanel();
+}
+
 function renderWorkflow() {
     const workflow = document.getElementById('operationsLog');
     if (!workflow) return;
@@ -731,23 +754,8 @@ function renderWorkflow() {
         }
         // --- END FAVORITE UI ---
 
-        // Determine operation type and apply appropriate highlight
+        // No automatic highlighting - only show selected items in blue
         const opText = item.operation || '';
-        const isLastItem = (idx === operationsHistory.length - 1);
-
-        if (isLastItem) {
-            // Different colors for different operation types
-            if (opText.match(/^(add|subtract|union)\(/)) {
-                // Binary operations: Purple highlight
-                entry.classList.add('newly-added-binary');
-            } else if (opText.match(/\(/)) {
-                // Primitives: Blue highlight
-                entry.classList.add('newly-added-primitive');
-            } else {
-                // Transforms: Green highlight
-                entry.classList.add('newly-added-transform');
-            }
-        }
 
         entry.onclick = () => onWorkflowClick(idx);
 
@@ -763,14 +771,7 @@ function renderWorkflow() {
             svgWrap.className = 'operand-box program-result';
             const resultSvg = renderThumbnail(item.pattern, 4);
             svgWrap.appendChild(resultSvg);
-            svgWrap.addEventListener('click', (e) => {
-                if (pendingBinaryOp) {
-                    return; // allow parent click handler to handle selection
-                }
-                e.stopPropagation();
-                currentPattern = JSON.parse(JSON.stringify(item.pattern));
-                renderPattern(currentPattern, 'workspace');
-            });
+            // Click on SVG should trigger the same selection logic as clicking the row
 
             // 表达式 token 区
             const expr = document.createElement('div');
@@ -812,12 +813,7 @@ function renderWorkflow() {
             svgWrap.className = 'operand-box program-result';
             const resultSvg = renderThumbnail(item.pattern, 4);
             svgWrap.appendChild(resultSvg);
-            svgWrap.addEventListener('click', (e) => {
-                if (pendingBinaryOp) return;
-                e.stopPropagation();
-                currentPattern = JSON.parse(JSON.stringify(item.pattern));
-                renderPattern(currentPattern, 'workspace');
-            });
+            // Click on SVG should trigger the same selection logic as clicking the row
 
             const expr = document.createElement('div');
             expr.className = 'program-expr';
@@ -860,15 +856,7 @@ function renderWorkflow() {
             // Render primitive result using the same preview-style box
             const thumbSvg = renderThumbnail(item.pattern, 4);
             svgWrap.appendChild(thumbSvg);
-            // Clicking thumbnail loads this pattern into workspace (does not toggle selection)
-            svgWrap.addEventListener('click', (e) => {
-                if (pendingBinaryOp) {
-                    return; // let parent entry handle selection toggling
-                }
-                e.stopPropagation();
-                currentPattern = JSON.parse(JSON.stringify(item.pattern));
-                renderPattern(currentPattern, 'workspace');
-            });
+            // Click on SVG should trigger the same selection logic as clicking the row
 
             const label = document.createElement('div');
             label.className = 'thumb-label';
@@ -942,9 +930,10 @@ function onWorkflowClick(idx) {
         };
         // explicit operand provided
         unaryModeJustEntered = false;
-        renderWorkflow();
+        // Optimized: only update selection state, don't rebuild entire workflow
+        updateWorkflowSelectionHighlight();
         createUnaryPreview();
-        updateAllButtonStates();
+        // updateAllButtonStates already called in renderWorkflow via createUnaryPreview
     } else {
         // Normal mode: load pattern and mark as selected for transforms
         if (operationsHistory[idx] && operationsHistory[idx].pattern) {
@@ -1131,8 +1120,8 @@ function applySelectedBinary() {
     last.opFn = pendingBinaryOp;
     last.operands = { a: a, b: b };
     
-    // Clear selections - don't auto-select the result
-    workflowSelections = [];
+    // Auto-select the newly added operation (last line)
+    workflowSelections = [operationsHistory.length - 1];
 
     // clear preview state and exit binary mode
     clearBinaryPreview();
@@ -1267,10 +1256,9 @@ function clearBinaryPreview() {
     currentPattern = JSON.parse(JSON.stringify(base));
     renderPattern(currentPattern, 'workspace');
     
-    // Clear pending operation AND selections
+    // Clear pending operation (keep selections as set by caller)
     pendingBinaryOp = null;
     pendingUnaryOp = null;
-    workflowSelections = [];
     
     updateAllButtonStates();
     updateInlinePreviewPanel();
@@ -1289,7 +1277,6 @@ function clearUnaryPreview() {
     renderPattern(currentPattern, 'workspace');
 
     pendingUnaryOp = null;
-    workflowSelections = [];
 
     updateAllButtonStates();
     updateInlinePreviewPanel();
@@ -1332,7 +1319,8 @@ function applySelectedUnary() {
     last.operands = { input: operandCopy };
     last.operandSource = operandSourceMeta;
 
-    workflowSelections = [];
+    // Auto-select the newly added operation (last line)
+    workflowSelections = [operationsHistory.length - 1];
     clearUnaryPreview();
     renderWorkflow();
     checkTutorialProgress();
@@ -1645,12 +1633,9 @@ function submitAnswer() {
     let pointsAwardedThisSubmission = 0;
     const eligibleForPoints = match && !previouslySuccessful;
     if (eligibleForPoints) {
-        const available = Math.max(0, POINTS_MAX - totalPoints);
-        pointsAwardedThisSubmission = Math.min(pointsPerCorrect, available);
-        if (pointsAwardedThisSubmission > 0) {
-            totalPoints += pointsAwardedThisSubmission;
-            updatePointsDisplay();
-        }
+        pointsAwardedThisSubmission = pointsPerCorrect; // Award 10 points per correct answer
+        totalPoints += pointsAwardedThisSubmission;
+        updatePointsDisplay();
     }
 
     // Record trial data
@@ -1682,7 +1667,7 @@ function submitAnswer() {
                 lines.push('Correct!');
             }
             lines.push(`Used ${operationsHistory.length} operations.`);
-            lines.push(`Total ${totalDisplay}/${POINTS_MAX}.`);
+            lines.push(`Total ${totalDisplay} points.`);
             message.textContent = lines.join('\n');
         } else {
             icon.textContent = '✗';
@@ -1690,7 +1675,7 @@ function submitAnswer() {
             const lines = [
                 'Not quite right. 0 points this round.',
                 `Used ${operationsHistory.length} operations.`,
-                `Total ${totalDisplay}/${POINTS_MAX}.`
+                `Total ${totalDisplay} points.`
             ];
             message.textContent = lines.join('\n');
         }

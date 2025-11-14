@@ -1,8 +1,8 @@
 // Comprehension check logic
 const checkBtn = document.getElementById("check-btn");
 const checks = ["check1", "check2", "check3", "check4"];
-// Correct answers: b, b, c, b
-const answers = ["b", "b", "c", "b"];
+// Correct answers: d, b, c, b
+const answers = ["d", "b", "c", "b"];
 
 const passBtn = document.getElementById("pass-btn");
 const retryBtn = document.getElementById("retry-btn");

@@ -5,133 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pattern DSL Experiment - Instructions</title>
     <link rel="stylesheet" href="../css/styles.css">
-    <style>
-        body {
-            background-color: #ffffff;
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-            color: #000;
-            scroll-behavior: smooth;
-        }
-        
-        .instruction-page {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 3rem 2rem;
-        }
-        
-        .instruction-page h1 {
-            text-align: center;
-            color: #000;
-            margin-bottom: 2rem;
-        }
-        
-        .instruction {
-            background: #fff;
-            padding: 2rem;
-            margin: 2rem 0;
-            color: #000;
-            line-height: 1.8;
-        }
-        
-        .instruction h2 {
-            color: #000;
-            margin-top: 0;
-            margin-bottom: 1.5rem;
-        }
-        
-        .instruction h3 {
-            color: #000;
-            margin-top: 2rem;
-            margin-bottom: 1rem;
-        }
-        
-        .instruction p, 
-        .instruction li {
-            color: #000;
-            margin-bottom: 0.75rem;
-        }
-        
-        .instruction ul,
-        .instruction ol {
-            margin-bottom: 1rem;
-        }
-        
-        .spacebar-hint {
-            background: #f0f0f0;
-            padding: 1rem;
-            margin-bottom: 1.5rem;
-            border-radius: 4px;
-            color: #000;
-            transition: opacity 0.3s ease;
-        }
-        
-        .content-line {
-            margin-bottom: 1rem;
-            scroll-margin-top: 100px;
-        }
-        
-        .content-line.hidden {
-            display: none;
-        }
-        
-        .content-line.fade-in {
-            animation: fadeIn 0.5s ease-in;
-        }
-        
-        @keyframes fadeIn {
-            from { 
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to { 
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .button-group {
-            text-align: center;
-            margin: 3rem 0;
-            scroll-margin-top: 150px;
-        }
-        
-        .big-button {
-            background-color: #007bff;
-            color: white;
-            font-size: 1.1rem;
-            padding: 0.75rem 2.5rem;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        
-        .big-button:hover:not(:disabled) {
-            background-color: #0056b3;
-        }
-        
-        .big-button:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
-    </style>
 </head>
-<body>
+<body class="light-page">
     <!-- Page 1: Welcome -->
     <div id="page1" class="instruction-page">
-        <h1>Pattern Programming Experiment</h1>
+        <h1>Pattern Language Experiment</h1>
         <div class="instruction">
             <h2>Welcome!</h2>
             <p>In this experiment, you'll be solving visual puzzles by creating simple programs. Think of yourself as a designer who needs to recreate target patterns using basic building blocks and operations.</p>
             
-            <p>You'll see <strong>18 target patterns</strong> displayed on a 10×10 grid. Your job is to recreate each pattern exactly by composing a program using:</p>
+            <p>You'll see <strong>18 target patterns</strong> displayed on a 10×10 grid. Your job is to recreate each pattern exactly using:</p>
             <ul>
                 <li><strong>Primitive shapes</strong> (lines, squares, triangles, etc.)</li>
                 <li><strong>Operations</strong> (add, subtract, union, flip, etc.)</li>
             </ul>
             
-            <p>When your program creates a pattern that <strong>exactly matches</strong> the target, you'll earn bonus points!</p>
+            <p>To make this fun, you will earn <strong>10 points</strong> for every pattern that exactly matches the target.</p>
         </div>
         <div class="button-group">
             <button class="big-button" id="next-page-btn">Next page >></button>
@@ -140,16 +29,16 @@
 
     <!-- Page 2: How It Works -->
     <div id="page2" class="instruction-page" style="display: none;">
-        <h1>Pattern Programming Experiment</h1>
+        <h1>Pattern Language Experiment</h1>
         <div class="instruction">
             <h2>How It Works</h2>
-            <p class="spacebar-hint" style="color: #fbbf24; font-style: italic; margin-bottom: 1rem;">
+            <p class="spacebar-hint" style="color: #f59e0b; font-style: italic; margin-bottom: 1rem;">
                 ⌨️ Press space bar to show each line in this section
             </p>
             
             <div id="progressive-content">
                 <div class="content-line hidden">
-                    <h3>Building Your Program</h3>
+                    <h3>Building Your Pattern</h3>
                 </div>
                 <div class="content-line hidden">
                     <ol>
@@ -179,16 +68,16 @@
                     <p>Here's where it gets interesting: as you work, you might notice that certain patterns or sub-patterns could be useful later.</p>
                 </div>
                 <div class="content-line hidden">
-                    <p>You can save any program you create to your personal collection:</p>
+                    <p>You can save any pattern you create to your personal collection:</p>
                 </div>
                 <div class="content-line hidden">
                     <ul>
-                        <li>Saved programs appear as visual thumbnails you can see and select</li>
+                        <li>Saved patterns appear as visual thumbnails you can see and select</li>
                     </ul>
                 </div>
                 <div class="content-line hidden">
                     <ul>
-                        <li>These saved programs carry forward to all future tasks</li>
+                        <li>These saved patterns carry forward to all future tasks</li>
                     </ul>
                 </div>
                 <div class="content-line hidden">
@@ -203,8 +92,8 @@
                 </div>
                 
                 <div class="content-line hidden">
-                    <div style="background: #f5f5f5; padding: 1rem; border-radius: 4px; margin: 1.5rem 0;">
-                        <p style="margin: 0;"><strong>Strategy tip:</strong> The patterns get progressively more complex. Programs you save early on might become useful shortcuts later!</p>
+                    <div style="background: #fef3c7; padding: 1.25rem; border-left: 4px solid #f59e0b; border-radius: 4px; margin: 1.5rem 0;">
+                        <p style="margin: 0; color: #92400e;"><strong>Strategy tip:</strong> The patterns get progressively more complex. Patterns you save early on might become useful shortcuts later!</p>
                     </div>
                 </div>
                 
@@ -218,7 +107,7 @@
                 </div>
                 <div class="content-line hidden">
                     <ul>
-                        <li>Program length doesn't matter—use as many or as few steps as you need</li>
+                        <li>How exactly you build your solution does not matter—use as many or as few steps as you need</li>
                     </ul>
                 </div>
                 <div class="content-line hidden">
@@ -235,14 +124,14 @@
 
     <!-- Page 3: Next Steps -->
     <div id="page3" class="instruction-page" style="display: none;">
-        <h1>Pattern Programming Experiment</h1>
+        <h1>Pattern Language Experiment</h1>
         <div class="instruction">
             <h2>Next Steps</h2>
             <p>You'll start with an interactive tutorial that shows you:</p>
             <ul>
                 <li>All available shapes and operations</li>
                 <li>How to use the interface</li>
-                <li>How to save and reuse programs</li>
+                <li>How to save and reuse patterns</li>
             </ul>
             
             <p style="margin-top: 2rem;"><strong>Ready to begin? Let's start with the tutorial!</strong></p>

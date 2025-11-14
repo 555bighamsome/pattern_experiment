@@ -679,6 +679,37 @@ function updateOperationsLog() {
     renderWorkflow();
 }
 
+// Lightweight update: only refresh selection highlights without rebuilding DOM
+function updateWorkflowSelectionHighlight() {
+    const workflow = document.getElementById('operationsLog');
+    if (!workflow) return;
+    
+    const entries = workflow.querySelectorAll('.operation-thumb');
+    entries.forEach((entry, idx) => {
+        if (workflowSelections.includes(idx)) {
+            entry.classList.add('selected');
+        } else {
+            entry.classList.remove('selected');
+        }
+        
+        // Update selection badges
+        const existingBadge = entry.querySelector('.selection-badge');
+        if (existingBadge) {
+            existingBadge.remove();
+        }
+        
+        const selPos = workflowSelections.indexOf(idx);
+        if (selPos !== -1) {
+            const badge = document.createElement('div');
+            badge.className = 'selection-badge';
+            badge.textContent = (selPos + 1).toString();
+            entry.appendChild(badge);
+        }
+    });
+    
+    updateInlinePreviewPanel();
+}
+
 function renderWorkflow() {
     const workflow = document.getElementById('operationsLog');
     if (!workflow) return;
@@ -714,23 +745,8 @@ function renderWorkflow() {
         }
         // --- END FAVORITE UI ---
 
-        // Determine operation type and apply appropriate highlight
+        // No automatic highlighting - only show selected items in blue
         const opText = item.operation || '';
-        const isLastItem = (idx === operationsHistory.length - 1);
-
-        if (isLastItem) {
-            // Different colors for different operation types
-            if (opText.match(/^(add|subtract|union)\(/)) {
-                // Binary operations: Purple highlight
-                entry.classList.add('newly-added-binary');
-            } else if (opText.match(/\(/)) {
-                // Primitives: Blue highlight
-                entry.classList.add('newly-added-primitive');
-            } else {
-                // Transforms: Green highlight
-                entry.classList.add('newly-added-transform');
-            }
-        }
 
         entry.onclick = () => onWorkflowClick(idx);
 
@@ -746,14 +762,7 @@ function renderWorkflow() {
             svgWrap.className = 'operand-box program-result';
             const resultSvg = renderThumbnail(item.pattern, 4);
             svgWrap.appendChild(resultSvg);
-            svgWrap.addEventListener('click', (e) => {
-                if (pendingBinaryOp) {
-                    return; // allow parent click handler to handle selection
-                }
-                e.stopPropagation();
-                currentPattern = JSON.parse(JSON.stringify(item.pattern));
-                renderPattern(currentPattern, 'workspace');
-            });
+            // Click on SVG should trigger the same selection logic as clicking the row
 
             // 表达式 token 区
             const expr = document.createElement('div');
@@ -795,12 +804,7 @@ function renderWorkflow() {
             svgWrap.className = 'operand-box program-result';
             const resultSvg = renderThumbnail(item.pattern, 4);
             svgWrap.appendChild(resultSvg);
-            svgWrap.addEventListener('click', (e) => {
-                if (pendingBinaryOp) return;
-                e.stopPropagation();
-                currentPattern = JSON.parse(JSON.stringify(item.pattern));
-                renderPattern(currentPattern, 'workspace');
-            });
+            // Click on SVG should trigger the same selection logic as clicking the row
 
             const expr = document.createElement('div');
             expr.className = 'program-expr';
@@ -843,15 +847,7 @@ function renderWorkflow() {
             // Render primitive result using the same preview-style box
             const thumbSvg = renderThumbnail(item.pattern, 4);
             svgWrap.appendChild(thumbSvg);
-            // Clicking thumbnail loads this pattern into workspace (does not toggle selection)
-            svgWrap.addEventListener('click', (e) => {
-                if (pendingBinaryOp) {
-                    return; // let parent entry handle selection toggling
-                }
-                e.stopPropagation();
-                currentPattern = JSON.parse(JSON.stringify(item.pattern));
-                renderPattern(currentPattern, 'workspace');
-            });
+            // Click on SVG should trigger the same selection logic as clicking the row
 
             const label = document.createElement('div');
             label.className = 'thumb-label';
@@ -925,9 +921,10 @@ function onWorkflowClick(idx) {
         };
         // explicit operand provided
         unaryModeJustEntered = false;
-        renderWorkflow();
+        // Optimized: only update selection state, don't rebuild entire workflow
+        updateWorkflowSelectionHighlight();
         createUnaryPreview();
-        updateAllButtonStates();
+        // updateAllButtonStates already called in renderWorkflow via createUnaryPreview
     } else {
         // Normal mode: load pattern and mark as selected for transforms
         if (operationsHistory[idx] && operationsHistory[idx].pattern) {
@@ -1114,8 +1111,8 @@ function applySelectedBinary() {
     last.opFn = pendingBinaryOp;
     last.operands = { a: a, b: b };
     
-    // Clear selections - don't auto-select the result
-    workflowSelections = [];
+    // Auto-select the newly added operation (last line)
+    workflowSelections = [operationsHistory.length - 1];
 
     // clear preview state and exit binary mode
     clearBinaryPreview();
@@ -1250,10 +1247,9 @@ function clearBinaryPreview() {
     currentPattern = JSON.parse(JSON.stringify(base));
     renderPattern(currentPattern, 'workspace');
     
-    // Clear pending operation AND selections
+    // Clear pending operation (keep selections as set by caller)
     pendingBinaryOp = null;
     pendingUnaryOp = null;
-    workflowSelections = [];
     
     updateAllButtonStates();
     updateInlinePreviewPanel();
@@ -1272,7 +1268,6 @@ function clearUnaryPreview() {
     renderPattern(currentPattern, 'workspace');
 
     pendingUnaryOp = null;
-    workflowSelections = [];
 
     updateAllButtonStates();
     updateInlinePreviewPanel();
@@ -1315,7 +1310,8 @@ function applySelectedUnary() {
     last.operands = { input: operandCopy };
     last.operandSource = operandSourceMeta;
 
-    workflowSelections = [];
+    // Auto-select the newly added operation (last line)
+    workflowSelections = [operationsHistory.length - 1];
     clearUnaryPreview();
     renderWorkflow();
     checkTutorialProgress();
@@ -1651,46 +1647,15 @@ function submitAnswer() {
 
     // Show centered modal feedback
     if (modal && icon && message) {
+        // Tutorial/Practice mode: always show encouraging feedback without points
         if (match) {
             icon.textContent = '✓';
             icon.className = 'feedback-icon success';
-            const lines = [];
-            
-            // 练习模式：不显示分数
-            if (isPracticeMode) {
-                lines.push('Correct!');
-                lines.push(`Used ${operationsHistory.length} operations.`);
-            } else {
-                // 正式试验模式：显示分数
-                const totalDisplay = formatPoints(Math.round(totalPoints));
-                if (pointsAwardedThisSubmission > 0) {
-                    lines.push(`Correct! +${formatPoints(pointsAwardedThisSubmission)} points.`);
-                } else if (previouslySuccessful) {
-                    lines.push('Correct! Points were already awarded for this trial.');
-                } else {
-                    lines.push('Correct!');
-                }
-                lines.push(`Used ${operationsHistory.length} operations.`);
-                lines.push(`Total ${totalDisplay}/${POINTS_MAX}.`);
-            }
-            message.textContent = lines.join('\n');
+            message.textContent = 'Great job! That\'s the correct way to submit.\nYou successfully matched the target pattern!';
         } else {
-            icon.textContent = '✗';
-            icon.className = 'feedback-icon error';
-            const lines = [];
-            
-            // 练习模式：不显示分数
-            if (isPracticeMode) {
-                lines.push('Not quite right. Try again!');
-                lines.push(`Used ${operationsHistory.length} operations.`);
-            } else {
-                // 正式试验模式：显示分数
-                const totalDisplay = formatPoints(Math.round(totalPoints));
-                lines.push('Not quite right. 0 points this round.');
-                lines.push(`Used ${operationsHistory.length} operations.`);
-                lines.push(`Total ${totalDisplay}/${POINTS_MAX}.`);
-            }
-            message.textContent = lines.join('\n');
+            icon.textContent = '✓';
+            icon.className = 'feedback-icon success';
+            message.textContent = 'Perfect! You\'ve learned how to submit.\nThat\'s the correct submission method!';
         }
 
         modal.classList.add('show');
@@ -1800,7 +1765,10 @@ const tutorialSteps = [
         content: `<p>This interactive tutorial will show you how to use the interface.</p>
             <p>You'll see the same interface you'll use in the actual experiment.</p>
             <p>Click "Next" to continue.</p>`,
-        onEnter: null,
+        onEnter: () => {
+            const target = document.getElementById('targetPattern');
+            if (target) renderPattern(geomDSL.square(), target);
+        },
         waitForAction: false,
         checkCompletion: null
     },
@@ -1808,16 +1776,13 @@ const tutorialSteps = [
         title: "The Interface Overview",
         content: `<p>Here's what you'll see:</p>
             <ul>
-                <li><strong>Preview Panel</strong> (top left): Shows operation before confirming</li>
-                <li><strong>Target Pattern</strong>: Pattern you need to recreate</li>
+                <li><strong>PREVIEW</strong> (top left): Shows operation before confirming</li>
+                <li><strong>TARGET PATTERN</strong>: Pattern you need to recreate</li>
                 <li><strong>Your Pattern</strong>: Your current work</li>
                 <li><strong>Operations & Primitives</strong> (right): Building blocks</li>
                 <li><strong>Your Program</strong> (bottom): All your steps</li>
             </ul>`,
-        onEnter: () => {
-            const target = document.getElementById('targetPattern');
-            if (target) renderPattern(geomDSL.square(), target);
-        },
+        onEnter: null,
         waitForAction: false,
         checkCompletion: null
     },

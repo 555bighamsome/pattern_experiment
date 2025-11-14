@@ -22,9 +22,16 @@
             position: relative;
         }
         
+        /* Make sure target pattern content is visible above tutorial box */
+        .target-card .panel-title,
+        .target-card #targetPattern {
+            position: relative;
+            z-index: 50;
+        }
+        
         .tutorial-box {
             position: absolute;
-            top: 0;
+            top: 50px;
             left: 0;
             right: 0;
             bottom: 0;
@@ -154,6 +161,7 @@
             </div>
 
             <div id="binaryPreviewPanel" class="panel-card preview-card binary-preview-panel">
+                <h3 class="panel-title">PREVIEW</h3>
                 <div class="binary-preview-header is-hidden">
                     <div id="binaryPreviewTitle" class="binary-preview-title"></div>
                 </div>
@@ -181,7 +189,7 @@
             </div>
 
             <div class="panel-card target-card">
-                <h3 class="panel-title">Target Pattern</h3>
+                <h3 class="panel-title">TARGET PATTERN</h3>
                 <div id="targetPattern" class="pattern-view"></div>
                 
                 <!-- Tutorial Overlay inside Target Pattern card -->
