@@ -111,6 +111,95 @@ function patternsEqual(a, b) {
     return true;
 }
 
+// Calculate visual features of a pattern for cognitive analysis
+function calculateVisualFeatures(pattern) {
+    if (!pattern || !Array.isArray(pattern)) return null;
+    
+    const height = pattern.length;
+    const width = pattern[0] ? pattern[0].length : 0;
+    
+    // Count non-zero cells
+    let nonZeroCount = 0;
+    let sumX = 0, sumY = 0;
+    
+    for (let i = 0; i < height; i++) {
+        for (let j = 0; j < width; j++) {
+            if (pattern[i][j] !== 0) {
+                nonZeroCount++;
+                sumX += j;
+                sumY += i;
+            }
+        }
+    }
+    
+    // Calculate center of mass
+    const centerOfMass = nonZeroCount > 0 ? {
+        x: (sumX / nonZeroCount).toFixed(2),
+        y: (sumY / nonZeroCount).toFixed(2)
+    } : { x: 0, y: 0 };
+    
+    // Calculate complexity (percentage of filled cells)
+    const complexity = ((nonZeroCount / (height * width)) * 100).toFixed(2);
+    
+    // Check symmetries
+    const hasVerticalSymmetry = checkVerticalSymmetry(pattern);
+    const hasHorizontalSymmetry = checkHorizontalSymmetry(pattern);
+    const hasDiagonalSymmetry = checkDiagonalSymmetry(pattern);
+    
+    return {
+        nonZeroCount: nonZeroCount,
+        complexity: parseFloat(complexity),
+        centerOfMass: centerOfMass,
+        symmetry: {
+            vertical: hasVerticalSymmetry,
+            horizontal: hasHorizontalSymmetry,
+            diagonal: hasDiagonalSymmetry
+        }
+    };
+}
+
+function checkVerticalSymmetry(pattern) {
+    const height = pattern.length;
+    const width = pattern[0] ? pattern[0].length : 0;
+    const midX = Math.floor(width / 2);
+    
+    for (let i = 0; i < height; i++) {
+        for (let j = 0; j < midX; j++) {
+            if (pattern[i][j] !== pattern[i][width - 1 - j]) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+function checkHorizontalSymmetry(pattern) {
+    const height = pattern.length;
+    const midY = Math.floor(height / 2);
+    
+    for (let i = 0; i < midY; i++) {
+        for (let j = 0; j < pattern[i].length; j++) {
+            if (pattern[i][j] !== pattern[height - 1 - i][j]) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+function checkDiagonalSymmetry(pattern) {
+    const size = Math.min(pattern.length, pattern[0] ? pattern[0].length : 0);
+    
+    for (let i = 0; i < size; i++) {
+        for (let j = 0; j < size; j++) {
+            if (pattern[i][j] !== pattern[j][i]) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 function isPatternFavorited(pattern) {
     return favorites.some(f => patternsEqual(f.pattern, pattern));
 }
@@ -136,14 +225,27 @@ function addFavoriteFromEntry(entry) {
     };
     favorites.push(snapshot);
     
-    // Record favorite addition for cognitive abstraction analysis
+    // Record favorite action for cognitive analysis with complete pattern data
     if (currentTrialRecord) {
         if (!currentTrialRecord.favoriteActions) {
             currentTrialRecord.favoriteActions = [];
         }
+        
+        // Calculate visual features for cognitive analysis
+        const visualFeatures = calculateVisualFeatures(pattern);
+        
         currentTrialRecord.favoriteActions.push({
             action: 'add',
             favoriteId: id,
+            operation: entry.operation,
+            pattern: JSON.parse(JSON.stringify(pattern)), // Complete 10x10 matrix
+            opFn: entry.opFn,
+            operands: entry.operands ? {
+                a: entry.operands.a ? JSON.parse(JSON.stringify(entry.operands.a)) : undefined,
+                b: entry.operands.b ? JSON.parse(JSON.stringify(entry.operands.b)) : undefined,
+                input: entry.operands.input ? JSON.parse(JSON.stringify(entry.operands.input)) : undefined
+            } : undefined,
+            visualFeatures: visualFeatures,
             timestamp: Date.now()
         });
     }
@@ -241,15 +343,32 @@ function renderFavoritesShelf() {
 }
 
 function useFavoritePattern(id, pattern) {
-    // Record favorite usage for cognitive analysis
+    // Find the favorite metadata for complete logging
+    const favorite = favorites.find(f => f.id === id);
+    
+    // Record favorite usage for cognitive analysis with complete pattern data
     if (currentTrialRecord) {
         if (!currentTrialRecord.favoriteActions) {
             currentTrialRecord.favoriteActions = [];
         }
+        
+        const context = pendingBinaryOp ? 'binary' : (pendingUnaryOp ? 'unary' : 'none');
+        const visualFeatures = calculateVisualFeatures(pattern);
+        
         currentTrialRecord.favoriteActions.push({
             action: 'use',
             favoriteId: id,
-            context: pendingBinaryOp ? 'binary' : (pendingUnaryOp ? 'unary' : 'none'),
+            context: context,
+            operation: favorite ? favorite.op : undefined,
+            pattern: JSON.parse(JSON.stringify(pattern)), // Complete 10x10 matrix being reused
+            opFn: favorite && favorite.meta ? favorite.meta.opFn : undefined,
+            operands: favorite && favorite.meta && favorite.meta.operands ? {
+                a: favorite.meta.operands.a ? JSON.parse(JSON.stringify(favorite.meta.operands.a)) : undefined,
+                b: favorite.meta.operands.b ? JSON.parse(JSON.stringify(favorite.meta.operands.b)) : undefined,
+                input: favorite.meta.operands.input ? JSON.parse(JSON.stringify(favorite.meta.operands.input)) : undefined
+            } : undefined,
+            visualFeatures: visualFeatures,
+            usedAs: context === 'binary' ? (inlinePreview.aPattern ? 'operandB' : 'operandA') : (context === 'unary' ? 'unaryInput' : 'unknown'),
             timestamp: Date.now()
         });
     }
@@ -503,6 +622,7 @@ function loadTrial(index) {
         trial: currentTestIndex + 1,
         actualProblemIndex: actualIndex,
         testName: testCases[actualIndex].name,
+        targetPattern: JSON.parse(JSON.stringify(targetPattern)), // Save target pattern for analysis
         steps: [], // will be populated by addOperation
         operations: [], // summary operation strings
         stepsCount: 0,
@@ -556,7 +676,27 @@ function getTotalTrials() {
     return (Array.isArray(testOrder) && testOrder.length > 0) ? testOrder.length : getTestCaseCount();
 }
 
+// Helper function to record button clicks for cognitive analysis
+function logButtonClick(buttonType, operationName, context = {}) {
+    if (!currentTrialRecord) return;
+    if (!currentTrialRecord.buttonClickActions) {
+        currentTrialRecord.buttonClickActions = [];
+    }
+    currentTrialRecord.buttonClickActions.push({
+        buttonType,  // 'primitive', 'transform', 'binary'
+        operation: operationName,
+        context,  // { currentMode, hasPreview, etc. }
+        timestamp: Date.now()
+    });
+}
+
 function applyPrimitive(name) {
+    // Log button click for cognitive analysis
+    logButtonClick('primitive', name, {
+        pendingBinary: !!pendingBinaryOp,
+        pendingUnary: !!pendingUnaryOp
+    });
+
     // Primitives provide operands for pending operations (binary or unary)
     if (!pendingBinaryOp && !pendingUnaryOp) {
         showToast('⚠️ Please select an operation (binary or unary) before choosing a primitive.', 'warning');
@@ -601,6 +741,12 @@ function applyPrimitive(name) {
 }
 
 function selectUnaryOp(name) {
+    // Log button click for cognitive analysis
+    logButtonClick('transform', name, {
+        wasActive: pendingUnaryOp === name,
+        previousOp: pendingUnaryOp
+    });
+
     const wasActive = pendingUnaryOp === name;
 
     if (pendingBinaryOp) {
@@ -641,7 +787,7 @@ function applyTransform(name) {
     selectUnaryOp(name);
 }
 
-function addOperation(op) {
+function addOperation(op, metadata = {}) {
     // default: simple operation entry
     const entry = {
         operation: op,
@@ -657,7 +803,14 @@ function addOperation(op) {
             operation: op,
             pattern: JSON.parse(JSON.stringify(currentPattern)),
             timestamp: now,
-            intervalFromLast: 0  // Calculate interval from last step
+            intervalFromLast: 0,  // Calculate interval from last step
+            // Save structured operation information for cognitive analysis
+            opFn: metadata.opFn || undefined,
+            operands: metadata.operands ? {
+                a: metadata.operands.a ? JSON.parse(JSON.stringify(metadata.operands.a)) : undefined,
+                b: metadata.operands.b ? JSON.parse(JSON.stringify(metadata.operands.b)) : undefined,
+                input: metadata.operands.input ? JSON.parse(JSON.stringify(metadata.operands.input)) : undefined
+            } : undefined
         };
         
         // Calculate time since last step for cognitive latency analysis
@@ -983,6 +1136,12 @@ function toggleWorkflowSelection(idx) {
 
 // Called when user clicks a binary op button in the bottom bar
 function selectBinaryOp(op) {
+    // Log button click for cognitive analysis
+    logButtonClick('binary', op, {
+        wasActive: pendingBinaryOp === op,
+        previousOp: pendingBinaryOp
+    });
+
     const prev = pendingBinaryOp;
     
     // Toggle: clicking the same button again cancels binary mode
@@ -1106,7 +1265,10 @@ function applySelectedBinary() {
 
     // 在 Program 中希望以“缩略图表达式”显示，因此 operation 文本保留，同时在 entry 上放置结构化字段
     const opText = `${pendingBinaryOp}(${labelA}, ${labelB})`;
-    addOperation(opText);
+    addOperation(opText, {
+        opFn: pendingBinaryOp,
+        operands: { a: a, b: b }
+    });
     const last = operationsHistory[operationsHistory.length - 1];
     last.opFn = pendingBinaryOp;
     last.operands = { a: a, b: b };
@@ -1300,13 +1462,17 @@ function applySelectedUnary() {
         operandLabel = `${operandSourceMeta.index + 1}`;
     }
 
-    const opText = `${pendingUnaryOp}(${operandLabel})`;
-    addOperation(opText);
-    const last = operationsHistory[operationsHistory.length - 1];
-    last.opFn = pendingUnaryOp;
     const operandCopy = (sourceSnapshot !== undefined && sourceSnapshot !== null)
         ? JSON.parse(JSON.stringify(sourceSnapshot))
         : null;
+
+    const opText = `${pendingUnaryOp}(${operandLabel})`;
+    addOperation(opText, {
+        opFn: pendingUnaryOp,
+        operands: { input: operandCopy }
+    });
+    const last = operationsHistory[operationsHistory.length - 1];
+    last.opFn = pendingUnaryOp;
     last.operands = { input: operandCopy };
     last.operandSource = operandSourceMeta;
 
