@@ -60,13 +60,13 @@
             </div>
 
             <div class="panel-card pattern-card">
-                <h3 class="panel-title">Your Pattern</h3>
+                <h3 class="panel-title">YOUR PATTERN</h3>
                 <div class="workspace-canvas" id="workspace"></div>
             </div>
 
             <div class="panel-card controls-card">
                 <div class="controls-section operations-section">
-                    <h4 class="panel-subtitle">Operations</h4>
+                    <h4 class="panel-subtitle">OPERATIONS</h4>
                     <div class="section-panel">
                     <div class="operations-grid">
                         <button id="bin-add" data-op="add" class="transform-btn binary-btn" onclick="selectBinaryOp('add')" title="Add/OR two patterns">
@@ -97,7 +97,7 @@
                     </div>
                 </div>
                 <div class="controls-section primitives-section">
-                    <h4 class="panel-subtitle">Primitives</h4>
+                    <h4 class="panel-subtitle">PRIMITIVES</h4>
                     <div class="section-panel">
                     <div class="primitives-grid-inline">
                         <button class="primitive-btn" data-op="blank" onclick="applyPrimitive('blank')" title="Create blank pattern">
@@ -123,7 +123,7 @@
                 </div>
                 <div class="controls-section helpers-section">
                     <div class="helpers-header-row">
-                        <h3 class="helpers-title">Your helpers</h3>
+                        <h3 class="helpers-title">YOUR HELPERS</h3>
                     </div>
                     <div class="section-panel helpers-panel">
                         <div id="favoritesShelf" class="helpers-grid">
@@ -135,7 +135,7 @@
 
             <div class="panel-card program-card">
                 <div class="program-header">
-                    <h3>Your Program</h3>
+                    <h3>YOUR PROGRAM</h3>
                     <button class="btn btn-success program-submit" onclick="submitAnswer()" title="Submit your answer and proceed to next pattern">
                         <span style="font-size:1.1rem; margin-right:0.2rem;">✓</span> Submit
                     </button>
@@ -168,7 +168,7 @@
                         <div class="stat-item">
                             <span class="stat-label">Final Score:</span>
                             <span class="stat-value">
-                                <span id="finalPointsValue">0</span> points
+                                <span id="finalPointsValue">0</span> / <span id="finalPointsMax">18</span> points
                             </span>
                         </div>
                     </div>

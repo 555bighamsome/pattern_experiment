@@ -366,10 +366,14 @@ body:has(#experimentContent) {
 .target-card { 
     grid-area: target;
     padding: 0.9rem 0.9rem 1rem;
+    display: flex;
+    flex-direction: column;
 }
 .pattern-card { 
     grid-area: workspace;
     padding: 0.9rem 0.9rem 1rem;
+    display: flex;
+    flex-direction: column;
 }
 .program-card { grid-area: program; }
 .controls-card { 

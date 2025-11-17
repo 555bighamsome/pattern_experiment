@@ -8,33 +8,11 @@
     <style>
         /* Tutorial-specific styles */
         .tutorial-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            z-index: 100;
-            pointer-events: none;
+            margin-top: 0.75rem;
+            pointer-events: auto;
         }
-        
-        /* Position tutorial box over Target Pattern area */
-        .target-card {
-            position: relative;
-        }
-        
-        /* Make sure target pattern content is visible above tutorial box */
-        .target-card .panel-title,
-        .target-card #targetPattern {
-            position: relative;
-            z-index: 50;
-        }
-        
+
         .tutorial-box {
-            position: absolute;
-            top: 50px;
-            left: 0;
-            right: 0;
-            bottom: 0;
             background: linear-gradient(135deg, rgba(31, 41, 55, 0.95) 0%, rgba(17, 24, 39, 0.95) 100%);
             border: 2px solid rgba(245, 158, 11, 0.7);
             border-radius: 8px;
@@ -190,34 +168,20 @@
 
             <div class="panel-card target-card">
                 <h3 class="panel-title">TARGET PATTERN</h3>
-                <div id="targetPattern" class="pattern-view"></div>
-                
-                <!-- Tutorial Overlay inside Target Pattern card -->
-                <div id="tutorialOverlay" class="tutorial-overlay">
-                    <div class="tutorial-box">
-                        <div class="tutorial-progress">Tutorial Step <span id="tutorialStep">1</span> of <span id="tutorialTotal">5</span></div>
-                        <div class="tutorial-text">
-                            <h2 id="tutorialTitle">Welcome to the Tutorial!</h2>
-                            <div id="tutorialContent">
-                                <p>This interactive tutorial will show you how to use the interface.</p>
-                                <p>Click "Next" to continue.</p>
-                            </div>
-                        </div>
-                        <div class="tutorial-actions" style="margin-top: 0.75rem; text-align: right;">
-                            <button class="big-button" id="tutorialNextBtn">Next >></button>
-                        </div>
-                    </div>
-                </div>
+                <!-- Blank canvas shown during tutorial steps, hidden during practice -->
+                <div id="tutorialBlankCanvas" class="workspace-canvas"></div>
+                <!-- Real target pattern shown during practice -->
+                <div id="targetPattern" class="pattern-view" style="position: absolute; visibility: hidden;"></div>
             </div>
 
             <div class="panel-card pattern-card">
-                <h3 class="panel-title">Your Pattern</h3>
+                <h3 class="panel-title">YOUR PATTERN</h3>
                 <div class="workspace-canvas" id="workspace"></div>
             </div>
 
             <div class="panel-card controls-card">
                 <div class="controls-section operations-section">
-                    <h4 class="panel-subtitle">Operations</h4>
+                    <h4 class="panel-subtitle">OPERATIONS</h4>
                     <div class="section-panel">
                     <div class="operations-grid">
                         <button id="bin-add" data-op="add" class="transform-btn binary-btn" onclick="selectBinaryOp('add')" title="Add/OR two patterns">
@@ -248,7 +212,7 @@
                     </div>
                 </div>
                 <div class="controls-section primitives-section">
-                    <h4 class="panel-subtitle">Primitives</h4>
+                    <h4 class="panel-subtitle">PRIMITIVES</h4>
                     <div class="section-panel">
                     <div class="primitives-grid-inline">
                         <button class="primitive-btn" data-op="blank" onclick="applyPrimitive('blank')" title="Create blank pattern">
@@ -274,7 +238,7 @@
                 </div>
                 <div class="controls-section helpers-section">
                     <div class="helpers-header-row">
-                        <h3 class="helpers-title">Your helpers</h3>
+                        <h3 class="helpers-title">YOUR HELPERS</h3>
                     </div>
                     <div class="section-panel helpers-panel">
                         <div id="favoritesShelf" class="helpers-grid">
@@ -286,13 +250,30 @@
 
             <div class="panel-card program-card">
                 <div class="program-header">
-                    <h3>Your Program</h3>
+                    <h3>YOUR PROGRAM</h3>
                     <button class="btn btn-success program-submit" onclick="submitAnswer()" title="Submit your answer">
                         <span style="font-size:1.1rem; margin-right:0.2rem;">✓</span> Submit
                     </button>
                 </div>
                 <div class="operations-log" id="operationsLog">
                     <span style="color: #9ca3af; font-size: 0.85rem;">Waiting for operations...</span>
+                </div>
+                
+                <!-- Tutorial Overlay placed within Your Program panel -->
+                <div id="tutorialOverlay" class="tutorial-overlay">
+                    <div class="tutorial-box">
+                        <div class="tutorial-progress">Tutorial Step <span id="tutorialStep">1</span> of <span id="tutorialTotal">5</span></div>
+                        <div class="tutorial-text">
+                            <h2 id="tutorialTitle">Welcome to the Tutorial!</h2>
+                            <div id="tutorialContent">
+                                <p>This interactive tutorial will show you how to use the interface.</p>
+                                <p>Click "Next" to continue.</p>
+                            </div>
+                        </div>
+                        <div class="tutorial-actions" style="margin-top: 0.75rem; text-align: right;">
+                            <button class="big-button" id="tutorialNextBtn">Next >></button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

@@ -67,8 +67,7 @@ appState.unaryPreviewState = createUnaryPreviewState();
 function updatePointsDisplay() {
     const el = document.getElementById('pointsValue');
     if (el) {
-        const rounded = Math.round(totalPoints);
-        el.textContent = String(rounded);
+        el.textContent = String(totalPoints);
     }
     const maxEl = document.getElementById('pointsMaxValue');
     if (maxEl) {
@@ -77,7 +76,7 @@ function updatePointsDisplay() {
 }
 
 function formatPoints(value) {
-    return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '');
+    return String(value);
 }
 
 function showCompletionModal() {
@@ -85,7 +84,7 @@ function showCompletionModal() {
     if (!modal) return;
     const pointsEl = document.getElementById('finalPointsValue');
     if (pointsEl) {
-        pointsEl.textContent = String(Math.round(totalPoints));
+        pointsEl.textContent = String(totalPoints);
     }
     const maxEl = document.getElementById('finalPointsMax');
     if (maxEl) {
@@ -485,7 +484,7 @@ function startExperiment() {
     }
 
     const totalTrials = testOrder.length;
-    pointsPerCorrect = totalTrials > 0 ? POINTS_MAX / totalTrials : POINTS_MAX;
+    pointsPerCorrect = 1; // 1 point per correct trial
     totalPoints = 0;
     updatePointsDisplay();
     
@@ -1714,7 +1713,7 @@ function submitAnswer() {
         const trialEarned = match ? Math.max(previousPointsEarned, pointsAwardedThisSubmission) : previousPointsEarned;
         currentTrialRecord.pointsEarned = trialEarned;
         currentTrialRecord.pointsAwarded = pointsAwardedThisSubmission;
-        currentTrialRecord.totalPointsAfter = Math.round(totalPoints);
+        currentTrialRecord.totalPointsAfter = totalPoints;
     }
 
     // Show centered modal feedback
@@ -2014,19 +2013,13 @@ const tutorialSteps = [
     }
 ];
 function highlightTutorialElement(selector) {
-    const el = document.querySelector(selector);
-    if (el) {
-        el.style.border = '3px solid #f59e0b';
-        el.style.boxShadow = '0 0 20px rgba(245, 158, 11, 0.5)';
-        el.style.transition = 'all 0.3s ease';
-    }
+    // Highlighting disabled - function does nothing
+    return;
 }
 
 function removeTutorialHighlight() {
-    document.querySelectorAll('.primitives-section, .operations-section, #binaryPreviewPanel, .helpers-section, .program-card').forEach(el => {
-        el.style.border = '';
-        el.style.boxShadow = '';
-    });
+    // Highlighting disabled - function does nothing
+    return;
 }
 
 function showTutorialStep(step) {
@@ -2038,6 +2031,14 @@ function showTutorialStep(step) {
     const nextBtn = document.getElementById('tutorialNextBtn');
     
     if (!overlay || !nextBtn) return;
+    
+    // 确保教程期间显示空白画布
+    const tutorialBlankCanvas = document.getElementById('tutorialBlankCanvas');
+    if (tutorialBlankCanvas) {
+        tutorialBlankCanvas.style.display = 'flex';
+        tutorialBlankCanvas.style.visibility = 'visible';
+        tutorialBlankCanvas.style.position = 'static';
+    }
     
     stepSpan.textContent = step + 1;
     totalSpan.textContent = tutorialSteps.length;
@@ -2107,6 +2108,20 @@ function startPracticeMode() {
         tutorialOverlay.style.display = 'none';
     }
     
+    // 隐藏教程期间的空白画布，显示实际目标图案
+    const tutorialBlankCanvas = document.getElementById('tutorialBlankCanvas');
+    const targetPattern = document.getElementById('targetPattern');
+    if (tutorialBlankCanvas) {
+        tutorialBlankCanvas.style.display = 'none';
+        tutorialBlankCanvas.style.visibility = 'hidden';
+        tutorialBlankCanvas.style.position = 'absolute';
+    }
+    if (targetPattern) {
+        targetPattern.style.display = 'flex';
+        targetPattern.style.visibility = 'visible';
+        targetPattern.style.position = 'static';
+    }
+    
     // 加载第一个练习
     loadPracticeExercise(0);
     
@@ -2153,8 +2168,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize state
     currentPattern = geomDSL.blank();
-    targetPattern = geomDSL.square(); // Dummy target for tutorial
+    targetPattern = geomDSL.blank(); // Blank during tutorial
     renderPattern(currentPattern, 'workspace');
+    // Render blank pattern in tutorialBlankCanvas to match Your Pattern
+    renderPattern(geomDSL.blank(), 'tutorialBlankCanvas');
     
     // Initialize UI
     updateOperationsLog();

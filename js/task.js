@@ -29,13 +29,12 @@ appState.unaryPreviewState = createUnaryPreviewState();
 function updatePointsDisplay() {
     const el = document.getElementById('pointsValue');
     if (el) {
-        const rounded = Math.round(totalPoints);
-        el.textContent = String(rounded);
+        el.textContent = String(totalPoints);
     }
 }
 
 function formatPoints(value) {
-    return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, '');
+    return String(value);
 }
 
 function showCompletionModal() {
@@ -43,7 +42,7 @@ function showCompletionModal() {
     if (!modal) return;
     const pointsEl = document.getElementById('finalPointsValue');
     if (pointsEl) {
-        pointsEl.textContent = String(Math.round(totalPoints));
+        pointsEl.textContent = String(totalPoints);
     }
     modal.style.display = 'flex';
 }
@@ -551,7 +550,7 @@ function startExperiment() {
     }
 
     const totalTrials = testOrder.length;
-    pointsPerCorrect = 10; // Each task is worth 10 points
+    pointsPerCorrect = 1; // 1 point per correct trial
     totalPoints = 0;
     updatePointsDisplay();
     
@@ -1777,25 +1776,25 @@ function submitAnswer() {
         const trialEarned = match ? Math.max(previousPointsEarned, pointsAwardedThisSubmission) : previousPointsEarned;
         currentTrialRecord.pointsEarned = trialEarned;
         currentTrialRecord.pointsAwarded = pointsAwardedThisSubmission;
-        currentTrialRecord.totalPointsAfter = Math.round(totalPoints);
+        currentTrialRecord.totalPointsAfter = totalPoints;
     }
 
     // Show centered modal feedback
     if (modal && icon && message) {
-        const totalDisplay = formatPoints(Math.round(totalPoints));
+        const totalDisplay = formatPoints(totalPoints);
         if (match) {
             icon.textContent = '✓';
             icon.className = 'feedback-icon success';
             const lines = [];
             if (pointsAwardedThisSubmission > 0) {
-                lines.push(`Correct! +${formatPoints(pointsAwardedThisSubmission)} points.`);
+                lines.push(`Correct! +${formatPoints(pointsAwardedThisSubmission)} point${pointsAwardedThisSubmission > 1 ? 's' : ''}.`);
             } else if (previouslySuccessful) {
-                lines.push('Correct! Points were already awarded for this trial.');
+                lines.push('Correct! Point was already awarded for this trial.');
             } else {
                 lines.push('Correct!');
             }
             lines.push(`Used ${operationsHistory.length} operations.`);
-            lines.push(`Total ${totalDisplay} points.`);
+            lines.push(`Score: ${totalDisplay}/${POINTS_MAX}`);
             message.textContent = lines.join('\n');
         } else {
             icon.textContent = '✗';
@@ -1803,7 +1802,7 @@ function submitAnswer() {
             const lines = [
                 'Not quite right. 0 points this round.',
                 `Used ${operationsHistory.length} operations.`,
-                `Total ${totalDisplay} points.`
+                `Score: ${totalDisplay}/${POINTS_MAX}`
             ];
             message.textContent = lines.join('\n');
         }

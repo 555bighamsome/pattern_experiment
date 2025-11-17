@@ -1,6 +1,6 @@
 const SIZE = 10;
 const CELL_SIZE = 40;
-const POINTS_MAX = 100;
+const POINTS_MAX = 18; // 1 point per trial
 
 const appState = {
     currentTestIndex: 0,

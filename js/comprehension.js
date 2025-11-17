@@ -1,8 +1,8 @@
 // Comprehension check logic
 const checkBtn = document.getElementById("check-btn");
 const checks = ["check1", "check2", "check3", "check4"];
-// Correct answers: d, b, c, b
-const answers = ["d", "b", "c", "b"];
+// Correct answers: b, b, c, b
+const answers = ["b", "b", "c", "b"];
 
 const passBtn = document.getElementById("pass-btn");
 const retryBtn = document.getElementById("retry-btn");
@@ -10,6 +10,22 @@ const retryBtn = document.getElementById("retry-btn");
 checkBtn.onclick = () => checkComprehension();
 passBtn.onclick = () => location.href = "task.html";
 retryBtn.onclick = () => location.href = "instruction.html";
+
+// Prevent browser back button from bypassing the instructions
+// If user fails and tries to go back, redirect to instructions
+window.addEventListener('load', () => {
+    // Mark that the page has been visited
+    if (!sessionStorage.getItem('comprehension_visited')) {
+        sessionStorage.setItem('comprehension_visited', 'true');
+    }
+    
+    // Prevent going back to avoid re-attempting without reading instructions
+    window.history.pushState(null, '', window.location.href);
+    window.addEventListener('popstate', () => {
+        // If user tries to go back, redirect to instructions
+        window.location.href = 'instruction.html';
+    });
+});
 
 document.getElementById("prequiz").onchange = () => {
     if (isFilled()) {
