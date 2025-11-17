@@ -1847,11 +1847,11 @@ const tutorialSteps = [
         title: "The Interface Overview",
         content: `<p>Here's what you'll see:</p>
             <ul>
-                <li><strong>PREVIEW</strong>: Shows operation before confirming</li>
-                <li><strong>TARGET PATTERN</strong>: Pattern you need to recreate</li>
-                <li><strong>YOUR PATTERN</strong>: Your current work</li>
-                <li><strong>Operations & Primitives</strong>: Building blocks</li>
-                <li><strong>STEP SEQUENCE</strong>: All your steps</li>
+                <li><strong>PREVIEW</strong>: Preview operations before adding them to your sequence</li>
+                <li><strong>TARGET PATTERN</strong>: The goal pattern you need to recreate</li>
+                <li><strong>YOUR PATTERN</strong>: Your current pattern as you build it</li>
+                <li><strong>OPERATIONS & PRIMITIVES</strong>: Building blocks and transformations you can use</li>
+                <li><strong>STEP SEQUENCE</strong>: History of all operations you've applied</li>
             </ul>`,
         onEnter: null,
         waitForAction: false,
