@@ -284,10 +284,12 @@ function useFavoritePattern(id, pattern) {
         if (!aSource) {
             inlinePreview.aPattern = pattern;
             inlinePreview.aIndex = null;
+            inlinePreview.aFromFavorite = true; // Mark that operand A came from favorites
             filled = 'a';
         } else if (!bSource) {
             inlinePreview.bPattern = pattern;
             inlinePreview.bIndex = null;
+            inlinePreview.bFromFavorite = true; // Mark that operand B came from favorites
             filled = 'b';
         } else {
             showToast('Both operands are already selected.', 'warning');
@@ -346,7 +348,9 @@ function createInlinePreviewState() {
         aIndex: null,
         bIndex: null,
         aPattern: null, // temp operand from primitives (not logged)
-        bPattern: null
+        bPattern: null,
+        aFromFavorite: false, // track if operand A came from favorites
+        bFromFavorite: false  // track if operand B came from favorites
     };
 }
 
@@ -984,14 +988,28 @@ function onWorkflowClick(idx) {
         createUnaryPreview();
         // updateAllButtonStates already called in renderWorkflow via createUnaryPreview
     } else {
-        // Normal mode: load pattern and mark as selected for transforms
+        // Normal mode: toggle selection - click to select, click again to deselect
         if (operationsHistory[idx] && operationsHistory[idx].pattern) {
-            currentPattern = JSON.parse(JSON.stringify(operationsHistory[idx].pattern));
-            renderPattern(currentPattern, 'workspace');
+            // Check if this item is already selected
+            const isAlreadySelected = workflowSelections.length === 1 && workflowSelections[0] === idx;
             
-            // Mark this item as selected (for transform labeling)
-            workflowSelections = [idx];
-            renderWorkflow();
+            if (isAlreadySelected) {
+                // Deselect: clear selection and clear YOUR PATTERN display
+                workflowSelections = [];
+                currentPattern = null;
+                // Clear the workspace canvas
+                const workspace = document.getElementById('workspace');
+                if (workspace) workspace.innerHTML = '';
+                renderWorkflow();
+            } else {
+                // Select: load pattern and mark as selected
+                currentPattern = JSON.parse(JSON.stringify(operationsHistory[idx].pattern));
+                renderPattern(currentPattern, 'workspace');
+                
+                // Mark this item as selected (for transform labeling)
+                workflowSelections = [idx];
+                renderWorkflow();
+            }
         }
     }
 }
@@ -1019,7 +1037,7 @@ function toggleWorkflowSelection(idx) {
         }
         // If already have two operands in binary mode, do not replace them.
         if (pendingBinaryOp && workflowSelections.length >= 2) {
-            showToast('Two operands are already selected. Reset or confirm the current operation before selecting another.', 'warning');
+            showToast('Two operands are already selected. Use ⟲ Reset to cancel the operation.', 'warning');
             return;
         }
         if (workflowSelections.length >= 2) {
@@ -1030,7 +1048,12 @@ function toggleWorkflowSelection(idx) {
         }
         workflowSelections.push(idx);
     } else {
-        // remove existing selection
+        // In operation mode, don't allow deselecting operands - use Reset instead
+        if (pendingBinaryOp || pendingUnaryOp) {
+            showToast('Cannot deselect operand. Use ⟲ Reset to cancel the operation.', 'warning');
+            return;
+        }
+        // Normal mode: remove existing selection
         workflowSelections.splice(pos, 1);
         if (inlinePreview.aIndex === idx) inlinePreview.aIndex = null;
         if (inlinePreview.bIndex === idx) inlinePreview.bIndex = null;
@@ -1142,6 +1165,24 @@ function updateAllButtonStates() {
         }
     });
     
+    // === SUBMIT BUTTON ===
+    // Disable submit button when there's an unconfirmed operation
+    const submitBtn = document.querySelector('.program-submit');
+    if (submitBtn) {
+        const hasUnconfirmedOperation = (isBinaryMode || isUnaryMode) && previewPattern !== null;
+        if (hasUnconfirmedOperation) {
+            submitBtn.disabled = true;
+            submitBtn.title = 'Please Confirm or Reset your operation before submitting';
+            submitBtn.style.opacity = '0.5';
+            submitBtn.style.cursor = 'not-allowed';
+        } else {
+            submitBtn.disabled = false;
+            submitBtn.title = 'Submit your answer';
+            submitBtn.style.opacity = '1';
+            submitBtn.style.cursor = 'pointer';
+        }
+    }
+    
     // === STATUS BAR & HINT TEXT ===
 }
 
@@ -1178,6 +1219,11 @@ function applySelectedBinary() {
     last.opFn = pendingBinaryOp;
     last.operands = { a: a, b: b };
     
+    // Mark if any operand came from favorites
+    if (inlinePreview.aFromFavorite || inlinePreview.bFromFavorite) {
+        last.helperUsed = true;
+    }
+    
     // Auto-select the newly added operation (last line)
     workflowSelections = [operationsHistory.length - 1];
 
@@ -1200,6 +1246,18 @@ function createBinaryPreview() {
     const aPattern = aSource && aSource.pattern;
     const bPattern = bSource && bSource.pattern;
 
+    // If we have first operand but not second, show the first operand in YOUR PATTERN
+    if (aPattern && !bPattern) {
+        previewPattern = null;
+        previewBackupPattern = null;
+        currentPattern = JSON.parse(JSON.stringify(aPattern));
+        renderPattern(currentPattern, 'workspace');
+        setWorkspaceGlow(false);
+        updateInlinePreviewPanel();
+        return;
+    }
+
+    // If we don't have any operands, restore to last committed pattern
     if (!aPattern || !bPattern) {
         previewPattern = null;
         previewBackupPattern = null;
@@ -1380,6 +1438,11 @@ function applySelectedUnary() {
     last.opFn = pendingUnaryOp;
     last.operands = { input: operandCopy };
     last.operandSource = operandSourceMeta;
+    
+    // Mark if operand came from favorites
+    if (operandSourceMeta && operandSourceMeta.type === 'favorite') {
+        last.helperUsed = true;
+    }
 
     // Auto-select the newly added operation (last line)
     workflowSelections = [operationsHistory.length - 1];
@@ -1679,6 +1742,12 @@ function resetWorkspace() {
 }
 
 function submitAnswer() {
+    // In tutorial mode (not practice), Submit button is for learning only
+    if (!isPracticeMode) {
+        showToast('This is tutorial mode. Submit button will work in practice exercises!', 'info', 2500);
+        return;
+    }
+    
     if (!currentPattern) {
         showToast('Please create a pattern first', 'warning');
         return;
@@ -1718,15 +1787,23 @@ function submitAnswer() {
 
     // Show centered modal feedback
     if (modal && icon && message) {
-        // Tutorial/Practice mode: always show encouraging feedback without points
+        // Tutorial/Practice mode: check if answer is correct
         if (match) {
             icon.textContent = '✓';
             icon.className = 'feedback-icon success';
-            message.textContent = 'Great job! That\'s the correct way to submit.\nYou successfully matched the target pattern!';
+            // Check if this is the last practice exercise
+            const isLastPractice = isPracticeMode && currentPracticeExercise >= practiceExercises.length - 1;
+            if (isLastPractice) {
+                message.textContent = 'Perfect! Practice exercises completed.\nMoving to comprehension check...';
+            } else if (isPracticeMode) {
+                message.textContent = 'Perfect! Your pattern matches the target.\nMoving to the next practice...';
+            } else {
+                message.textContent = 'Correct! Your pattern matches the target.';
+            }
         } else {
-            icon.textContent = '✓';
-            icon.className = 'feedback-icon success';
-            message.textContent = 'Perfect! You\'ve learned how to submit.\nThat\'s the correct submission method!';
+            icon.textContent = '✗';
+            icon.className = 'feedback-icon failure';
+            message.textContent = 'Not quite right. Your pattern doesn\'t match the target.\nTry again!';
         }
 
         modal.classList.add('show');
@@ -1734,14 +1811,17 @@ function submitAnswer() {
         setTimeout(() => {
             modal.classList.remove('show');
             
-            // 练习模式：自动进入下一个练习
+            // 练习模式：只有答案正确才进入下一个练习
             if (isPracticeMode) {
-                if (currentPracticeExercise < practiceExercises.length - 1) {
-                    loadPracticeExercise(currentPracticeExercise + 1);
-                } else {
-                    // 练习完成，跳转到comprehension check
-                    location.href = 'comprehension.html';
+                if (match) {
+                    if (currentPracticeExercise < practiceExercises.length - 1) {
+                        loadPracticeExercise(currentPracticeExercise + 1);
+                    } else {
+                        // 练习完成，跳转到comprehension check
+                        location.href = 'comprehension.html';
+                    }
                 }
+                // 如果答案错误，保持在当前练习，让用户重试
             } else {
                 // 正式试验模式
                 if (currentTestIndex < getTotalTrials() - 1) {
@@ -1883,20 +1963,60 @@ const tutorialSteps = [
         content: `<p><strong>Task:</strong> Click <strong>✓ Confirm</strong>.</p>
             <p>This executes and adds to your step sequence!</p>
             <p><em style="color: #fbbf24;">"Next" appears after you confirm.</em></p>`,
-        onEnter: () => {
+        onEnter: function() {
             removeTutorialHighlight();
             highlightTutorialElement('#binaryPreviewPanel');
+            this._startHistoryLength = operationsHistory.length;
         },
         waitForAction: true,
-        checkCompletion: () => operationsHistory.length > 0
+        checkCompletion: function() {
+            // Check if a new operation was added (user confirmed)
+            return operationsHistory.length > this._startHistoryLength;
+        }
     },
     {
         title: "Try a Binary Operation",
-        content: `<p><strong>Task:</strong> Binary operation!</p>
+        content: `<p><strong>Task:</strong> Complete a binary operation!</p>
             <ol>
                 <li>Click <strong>add</strong></li>
                 <li>Click <strong>triangle</strong> (operand A)</li>
                 <li>Click <strong>square</strong> (operand B)</li>
+                <li>Click <strong>✓ Confirm</strong></li>
+            </ol>
+            <p><em style="color: #fbbf24;">"Next" when complete.</em></p>`,
+        onEnter: function() {
+            removeTutorialHighlight();
+            highlightTutorialElement('.operations-section');
+            this._startHistoryLength = operationsHistory.length;
+        },
+        waitForAction: true,
+        checkCompletion: function() {
+            // Check if a new operation was added and it's a binary operation (add)
+            if (operationsHistory.length <= this._startHistoryLength) return false;
+            const lastOp = operationsHistory[operationsHistory.length - 1];
+            return lastOp.operation && lastOp.operation.includes('add');
+        }
+    },
+    {
+        title: "Using Reset",
+        content: `<p>If you make a mistake, click <strong>⟲ Reset</strong> to cancel a pending operation.</p>
+            <p><strong>Try:</strong> Click an operation, then <strong>⟲ Reset</strong>.</p>
+            <p>This is optional - just know it's there if you need it!</p>`,
+        onEnter: () => {
+            removeTutorialHighlight();
+            highlightTutorialElement('#binaryPreviewPanel');
+        },
+        waitForAction: false,
+        checkCompletion: null
+    },
+    {
+        title: "Try SUBTRACT Operation",
+        content: `<p><strong>Task:</strong> Learn SUBTRACT - it removes cells from a base pattern.</p>
+            <ol>
+                <li>Click <strong>subtract</strong></li>
+                <li>Click <strong>square</strong> as the base (operand A)</li>
+                <li>Click <strong>triangle</strong> to remove (operand B)</li>
+                <li>Watch YOUR PATTERN - triangle cells will be removed from square</li>
                 <li>Click <strong>✓ Confirm</strong></li>
             </ol>
             <p><em style="color: #fbbf24;">"Next" when complete.</em></p>`,
@@ -1905,80 +2025,161 @@ const tutorialSteps = [
             highlightTutorialElement('.operations-section');
         },
         waitForAction: true,
-        checkCompletion: () => operationsHistory.length >= 2
+        checkCompletion: () => {
+            // Check if the last operation is a subtract
+            if (operationsHistory.length === 0) return false;
+            const lastOp = operationsHistory[operationsHistory.length - 1];
+            return lastOp.operation && lastOp.operation.includes('subtract');
+        }
     },
     {
-        title: "Using Reset",
-        content: `<p>If you make a mistake, click <strong>⟲ Reset</strong>.</p>
-            <p><strong>Try:</strong> Click an operation, then <strong>⟲ Reset</strong>.</p>`,
-        onEnter: () => {
-            removeTutorialHighlight();
-            highlightTutorialElement('#binaryPreviewPanel');
-        },
-        waitForAction: false,
-        checkCompletion: null
-    },
-    {
-        title: "Other Operations",
-        content: `<p>More operations:</p>
-            <ul>
-                <li><strong>Binary:</strong> add (OR), subtract (remove), union (AND)</li>
-                <li><strong>Unary:</strong> invert, flip_h/v/d (reflections)</li>
-            </ul>
-            <p>Primitives: blank, lines, square, triangle</p>`,
+        title: "Try UNION Operation",
+        content: `<p><strong>Task:</strong> Learn UNION - it keeps only overlapping cells.</p>
+            <ol>
+                <li>Click <strong>union</strong></li>
+                <li>Click <strong>square</strong> (operand A)</li>
+                <li>Click <strong>triangle</strong> (operand B)</li>
+                <li>Watch YOUR PATTERN - only overlapping cells remain</li>
+                <li>Click <strong>✓ Confirm</strong></li>
+            </ol>
+            <p><em style="color: #fbbf24;">"Next" when complete.</em></p>`,
         onEnter: () => {
             removeTutorialHighlight();
             highlightTutorialElement('.operations-section');
-            setTimeout(() => highlightTutorialElement('.primitives-section'), 1500);
         },
-        waitForAction: false,
-        checkCompletion: null
+        waitForAction: true,
+        checkCompletion: () => {
+            // Check if the last operation is a union
+            if (operationsHistory.length === 0) return false;
+            const lastOp = operationsHistory[operationsHistory.length - 1];
+            return lastOp.operation && lastOp.operation.includes('union');
+        }
     },
     {
-        title: "Selecting Program Steps",
-        content: `<p><strong>Important:</strong> You can <em>click</em> steps in "STEP SEQUENCE" to select them!</p>
-            <p>Selected steps (highlighted) can be used as inputs for operations.</p>
-            <p><strong>Try it now:</strong> Click any step below → it highlights. Click again to deselect.</p>`,
-        onEnter: () => {
+        title: "Try flip_h (Horizontal Flip)",
+        content: `<p><strong>Task:</strong> Try horizontal flip!</p>
+            <ol>
+                <li>Click <strong>flip_h</strong></li>
+                <li>Select any previous step or primitive</li>
+                <li>Watch YOUR PATTERN - see how it flips around the canvas center?</li>
+                <li>Click <strong>✓ Confirm</strong></li>
+            </ol>
+            <p><em style="color: #fbbf24;">"Next" when complete.</em></p>`,
+        onEnter: function() {
+            removeTutorialHighlight();
+            highlightTutorialElement('.operations-section');
+            // Store the current history length to check for new operation
+            this._startHistoryLength = operationsHistory.length;
+        },
+        waitForAction: true,
+        checkCompletion: function() {
+            // Check if a new operation was added and it's reflect_horizontal
+            if (operationsHistory.length <= (this._startHistoryLength || 0)) return false;
+            const lastOp = operationsHistory[operationsHistory.length - 1];
+            return lastOp.operation && lastOp.operation.includes('reflect_horizontal');
+        }
+    },
+    {
+        title: "Try flip_v (Vertical Flip)",
+        content: `<p><strong>Task:</strong> Try vertical flip!</p>
+            <ol>
+                <li>Click <strong>flip_v</strong></li>
+                <li>Select any previous step or primitive</li>
+                <li>Notice how left and right swap around the canvas center</li>
+                <li>Click <strong>✓ Confirm</strong></li>
+            </ol>
+            <p><em style="color: #fbbf24;">"Next" when complete.</em></p>`,
+        onEnter: function() {
+            removeTutorialHighlight();
+            highlightTutorialElement('.operations-section');
+            // Store the current history length to check for new operation
+            this._startHistoryLength = operationsHistory.length;
+        },
+        waitForAction: true,
+        checkCompletion: function() {
+            // Check if a new operation was added and it's reflect_vertical
+            if (operationsHistory.length <= (this._startHistoryLength || 0)) return false;
+            const lastOp = operationsHistory[operationsHistory.length - 1];
+            return lastOp.operation && lastOp.operation.includes('reflect_vertical');
+        }
+    },
+    {
+        title: "Practice: Using STEP SEQUENCE",
+        content: `<p>You can reuse previous steps as inputs! Try it:</p>
+            <ol>
+                <li>Click <strong>add</strong></li>
+                <li>Click <strong>any step</strong> in STEP SEQUENCE (not a primitive!)</li>
+                <li>Click <strong>another step</strong> or primitive</li>
+                <li>Click <strong>✓ Confirm</strong></li>
+            </ol>
+            <p><em style="color: #fbbf24;">"Next" when complete.</em></p>`,
+        onEnter: function() {
             removeTutorialHighlight();
             highlightTutorialElement('.program-card');
+            this._startHistoryLength = operationsHistory.length;
         },
-        waitForAction: false,
-        checkCompletion: null
-    },
-    {
-        title: "Using Selected Steps",
-        content: `<p>When selecting an operation (e.g., <strong>add</strong>), you can use:</p>
-            <ul>
-                <li><strong>Primitives</strong> - Click primitive buttons, OR</li>
-                <li><strong>Program steps</strong> - Click steps in "STEP SEQUENCE"</li>
-            </ul>
-            <p>This lets you reuse previous results!</p>`,
-        onEnter: () => {
-            removeTutorialHighlight();
-            highlightTutorialElement('.operations-section');
-            setTimeout(() => highlightTutorialElement('.program-card'), 1500);
-        },
-        waitForAction: false,
-        checkCompletion: null
+        waitForAction: true,
+        checkCompletion: function() {
+            // Check if a new add operation was added using at least one step from history
+            if (operationsHistory.length <= (this._startHistoryLength || 0)) return false;
+            const lastOp = operationsHistory[operationsHistory.length - 1];
+            if (!lastOp.operation || !lastOp.operation.includes('add')) return false;
+            // Check if at least one operand came from history (has historyIndex)
+            return lastOp.aIndex !== null || lastOp.bIndex !== null;
+        }
     },
     {
         title: "Helpers - Save Favorites",
         content: `<p><strong>Helpers</strong> let you save patterns for quick reuse!</p>
-            <ol>
-                <li>Find the <strong>+</strong> button in "Your helpers" section header</li>
-                <li>Click it to save the step as a helper</li>
-                <li>It appears in "Your helpers" section</li>
+            <ul>
+                <li>Find the <strong>+ button</strong> next to any step in "STEP SEQUENCE"</li>
+                <li>Click it to save that step as a helper</li>
+                <li>The helper appears in <strong>"YOUR HELPERS"</strong> section</li>
                 <li>Click helpers to use them as operands (just like primitives!)</li>
-            </ol>
+            </ul>
+            <p><strong>Try it now:</strong> Click the + button on any step below to add it to helpers.</p>
             <p><em>This is optional but saves time when patterns repeat.</em></p>`,
-        onEnter: () => {
+        onEnter: function() {
             removeTutorialHighlight();
+            this._initialFavoritesCount = favorites.length;
             highlightTutorialElement('.helpers-section');
             setTimeout(() => highlightTutorialElement('.program-card'), 1500);
         },
-        waitForAction: false,
-        checkCompletion: null
+        waitForAction: true,
+        checkCompletion: function() {
+            // Check if user has added at least one favorite
+            return favorites.length > (this._initialFavoritesCount || 0);
+        }
+    },
+    {
+        title: "Practice: Use a Helper",
+        content: `<p>Now let's practice using your saved helper!</p>
+            <p><strong>Task:</strong> Use a helper as an operand in an operation.</p>
+            <ol>
+                <li>Select any operation (like <strong>add</strong> or <strong>flip_h</strong>)</li>
+                <li>Click your helper in <strong>"YOUR HELPERS"</strong> section to use it</li>
+                <li>Complete the operation and confirm</li>
+            </ol>
+            <p><em>Helpers work just like primitives - click them to use as operands!</em></p>`,
+        onEnter: function() {
+            removeTutorialHighlight();
+            this._startHistoryLength = operationsHistory.length;
+            highlightTutorialElement('.helpers-section');
+        },
+        waitForAction: true,
+        checkCompletion: function() {
+            // Check if user has performed a new operation that used a helper
+            if (operationsHistory.length <= this._startHistoryLength) return false;
+            
+            // Check recent operations for helper usage (marked by helperUsed flag)
+            for (let i = this._startHistoryLength; i < operationsHistory.length; i++) {
+                const op = operationsHistory[i];
+                if (op.helperUsed) {
+                    return true;
+                }
+            }
+            return false;
+        }
     },
     {
         title: "Submitting Your Answer",

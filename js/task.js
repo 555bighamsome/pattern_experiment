@@ -1049,14 +1049,28 @@ function onWorkflowClick(idx) {
         createUnaryPreview();
         // updateAllButtonStates already called in renderWorkflow via createUnaryPreview
     } else {
-        // Normal mode: load pattern and mark as selected for transforms
+        // Normal mode: toggle selection - click to select, click again to deselect
         if (operationsHistory[idx] && operationsHistory[idx].pattern) {
-            currentPattern = JSON.parse(JSON.stringify(operationsHistory[idx].pattern));
-            renderPattern(currentPattern, 'workspace');
+            // Check if this item is already selected
+            const isAlreadySelected = workflowSelections.length === 1 && workflowSelections[0] === idx;
             
-            // Mark this item as selected (for transform labeling)
-            workflowSelections = [idx];
-            renderWorkflow();
+            if (isAlreadySelected) {
+                // Deselect: clear selection and clear YOUR PATTERN display
+                workflowSelections = [];
+                currentPattern = null;
+                // Clear the workspace canvas
+                const workspace = document.getElementById('workspace');
+                if (workspace) workspace.innerHTML = '';
+                renderWorkflow();
+            } else {
+                // Select: load pattern and mark as selected
+                currentPattern = JSON.parse(JSON.stringify(operationsHistory[idx].pattern));
+                renderPattern(currentPattern, 'workspace');
+                
+                // Mark this item as selected (for transform labeling)
+                workflowSelections = [idx];
+                renderWorkflow();
+            }
         }
     }
 }
@@ -1084,7 +1098,7 @@ function toggleWorkflowSelection(idx) {
         }
         // If already have two operands in binary mode, do not replace them.
         if (pendingBinaryOp && workflowSelections.length >= 2) {
-            showToast('Two operands are already selected. Reset or confirm the current operation before selecting another.', 'warning');
+            showToast('Two operands are already selected. Use ⟲ Reset to cancel the operation.', 'warning');
             return;
         }
         if (workflowSelections.length >= 2) {
@@ -1095,7 +1109,12 @@ function toggleWorkflowSelection(idx) {
         }
         workflowSelections.push(idx);
     } else {
-        // remove existing selection
+        // In operation mode, don't allow deselecting operands - use Reset instead
+        if (pendingBinaryOp || pendingUnaryOp) {
+            showToast('Cannot deselect operand. Use ⟲ Reset to cancel the operation.', 'warning');
+            return;
+        }
+        // Normal mode: remove existing selection
         workflowSelections.splice(pos, 1);
         if (inlinePreview.aIndex === idx) inlinePreview.aIndex = null;
         if (inlinePreview.bIndex === idx) inlinePreview.bIndex = null;
@@ -1207,6 +1226,24 @@ function updateAllButtonStates() {
         }
     });
     
+    // === SUBMIT BUTTON ===
+    // Disable submit button when there's an unconfirmed operation
+    const submitBtn = document.querySelector('.program-submit');
+    if (submitBtn) {
+        const hasUnconfirmedOperation = (isBinaryMode || isUnaryMode) && previewPattern !== null;
+        if (hasUnconfirmedOperation) {
+            submitBtn.disabled = true;
+            submitBtn.title = 'Please Confirm or Reset your operation before submitting';
+            submitBtn.style.opacity = '0.5';
+            submitBtn.style.cursor = 'not-allowed';
+        } else {
+            submitBtn.disabled = false;
+            submitBtn.title = 'Submit your answer and proceed to next pattern';
+            submitBtn.style.opacity = '1';
+            submitBtn.style.cursor = 'pointer';
+        }
+    }
+    
     // === STATUS BAR & HINT TEXT ===
 }
 
@@ -1265,6 +1302,18 @@ function createBinaryPreview() {
     const aPattern = aSource && aSource.pattern;
     const bPattern = bSource && bSource.pattern;
 
+    // If we have first operand but not second, show the first operand in YOUR PATTERN
+    if (aPattern && !bPattern) {
+        previewPattern = null;
+        previewBackupPattern = null;
+        currentPattern = JSON.parse(JSON.stringify(aPattern));
+        renderPattern(currentPattern, 'workspace');
+        setWorkspaceGlow(false);
+        updateInlinePreviewPanel();
+        return;
+    }
+
+    // If we don't have any operands, restore to last committed pattern
     if (!aPattern || !bPattern) {
         previewPattern = null;
         previewBackupPattern = null;
