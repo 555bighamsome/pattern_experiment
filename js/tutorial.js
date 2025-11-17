@@ -1847,11 +1847,11 @@ const tutorialSteps = [
         title: "The Interface Overview",
         content: `<p>Here's what you'll see:</p>
             <ul>
-                <li><strong>PREVIEW</strong> (top left): Shows operation before confirming</li>
+                <li><strong>PREVIEW</strong>: Shows operation before confirming</li>
                 <li><strong>TARGET PATTERN</strong>: Pattern you need to recreate</li>
-                <li><strong>Your Pattern</strong>: Your current work</li>
-                <li><strong>Operations & Primitives</strong> (right): Building blocks</li>
-                <li><strong>Your Program</strong> (bottom): All your steps</li>
+                <li><strong>YOUR PATTERN</strong>: Your current work</li>
+                <li><strong>Operations & Primitives</strong>: Building blocks</li>
+                <li><strong>STEP SEQUENCE</strong>: All your steps</li>
             </ul>`,
         onEnter: null,
         waitForAction: false,
@@ -1881,7 +1881,7 @@ const tutorialSteps = [
     {
         title: "Step 3: Confirm",
         content: `<p><strong>Task:</strong> Click <strong>✓ Confirm</strong>.</p>
-            <p>This executes and adds to your program!</p>
+            <p>This executes and adds to your step sequence!</p>
             <p><em style="color: #fbbf24;">"Next" appears after you confirm.</em></p>`,
         onEnter: () => {
             removeTutorialHighlight();
@@ -1936,7 +1936,7 @@ const tutorialSteps = [
     },
     {
         title: "Selecting Program Steps",
-        content: `<p><strong>Important:</strong> You can <em>click</em> steps in "Your Program" to select them!</p>
+        content: `<p><strong>Important:</strong> You can <em>click</em> steps in "STEP SEQUENCE" to select them!</p>
             <p>Selected steps (highlighted) can be used as inputs for operations.</p>
             <p><strong>Try it now:</strong> Click any step below → it highlights. Click again to deselect.</p>`,
         onEnter: () => {
@@ -1951,7 +1951,7 @@ const tutorialSteps = [
         content: `<p>When selecting an operation (e.g., <strong>add</strong>), you can use:</p>
             <ul>
                 <li><strong>Primitives</strong> - Click primitive buttons, OR</li>
-                <li><strong>Program steps</strong> - Click steps in "Your Program"</li>
+                <li><strong>Program steps</strong> - Click steps in "STEP SEQUENCE"</li>
             </ul>
             <p>This lets you reuse previous results!</p>`,
         onEnter: () => {
@@ -1985,7 +1985,7 @@ const tutorialSteps = [
         content: `<p>When you're satisfied with your pattern:</p>
             <ol>
                 <li><strong>Option 1:</strong> Submit the last step (default) - just click <strong>✓ Submit</strong></li>
-                <li><strong>Option 2:</strong> Click any step in "Your Program" to select it, then click <strong>✓ Submit</strong></li>
+                <li><strong>Option 2:</strong> Click any step in "STEP SEQUENCE" to select it, then click <strong>✓ Submit</strong></li>
                 <li>Get feedback and earn points!</li>
             </ol>
             <p><em>Tip: Click steps to preview different results before submitting!</em></p>`,
