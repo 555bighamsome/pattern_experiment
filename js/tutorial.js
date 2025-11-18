@@ -1948,9 +1948,9 @@ const tutorialSteps = [
     },
     {
         title: "Step 2: Provide the Input",
-        content: `<p><strong>Task:</strong> Click the <strong>square</strong> primitive.</p>
-            <p>You'll see a preview showing invert(square).</p>
-            <p><em style="color: #fbbf24;">"Next" appears after you select square.</em></p>`,
+        content: `<p><strong>Task:</strong> Click <strong>any primitive</strong>.</p>
+            <p>You'll see a preview of the inverted pattern.</p>
+            <p><em style="color: #fbbf24;">"Next" appears after you select a primitive.</em></p>`,
         onEnter: () => {
             removeTutorialHighlight();
             highlightTutorialElement('.primitives-section');
@@ -1979,8 +1979,8 @@ const tutorialSteps = [
         content: `<p><strong>Task:</strong> Complete a binary operation!</p>
             <ol>
                 <li>Click <strong>add</strong></li>
-                <li>Click <strong>triangle</strong> (operand A)</li>
-                <li>Click <strong>square</strong> (operand B)</li>
+                <li>Click <strong>any primitive</strong> (operand A)</li>
+                <li>Click <strong>another primitive</strong> (operand B)</li>
                 <li>Click <strong>✓ Confirm</strong></li>
             </ol>
             <p><em style="color: #fbbf24;">"Next" when complete.</em></p>`,
@@ -2014,9 +2014,9 @@ const tutorialSteps = [
         content: `<p><strong>Task:</strong> Learn SUBTRACT - it removes cells from a base pattern.</p>
             <ol>
                 <li>Click <strong>subtract</strong></li>
-                <li>Click <strong>square</strong> as the base (operand A)</li>
-                <li>Click <strong>triangle</strong> to remove (operand B)</li>
-                <li>Watch YOUR PATTERN - triangle cells will be removed from square</li>
+                <li>Click <strong>any primitive</strong> as the base (operand A)</li>
+                <li>Click <strong>another primitive</strong> to remove (operand B)</li>
+                <li>Watch YOUR PATTERN - cells from B will be removed from A</li>
                 <li>Click <strong>✓ Confirm</strong></li>
             </ol>
             <p><em style="color: #fbbf24;">"Next" when complete.</em></p>`,
@@ -2037,8 +2037,8 @@ const tutorialSteps = [
         content: `<p><strong>Task:</strong> Learn UNION - it keeps only overlapping cells.</p>
             <ol>
                 <li>Click <strong>union</strong></li>
-                <li>Click <strong>square</strong> (operand A)</li>
-                <li>Click <strong>triangle</strong> (operand B)</li>
+                <li>Click <strong>any primitive</strong> (operand A)</li>
+                <li>Click <strong>another primitive</strong> (operand B)</li>
                 <li>Watch YOUR PATTERN - only overlapping cells remain</li>
                 <li>Click <strong>✓ Confirm</strong></li>
             </ol>
