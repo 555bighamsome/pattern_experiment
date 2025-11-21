@@ -1181,15 +1181,10 @@ function updateAllButtonStates() {
     const unaryButtons = document.querySelectorAll('.unary-btn');
     unaryButtons.forEach(btn => {
         const op = btn.getAttribute('data-op');
-        if (isBinaryMode) {
-            btn.classList.add('disabled');
-            btn.classList.remove('enabled');
-            btn.title = 'Unary operations are disabled while a binary operation is active';
-        } else {
-            btn.classList.remove('disabled');
-            btn.classList.add('enabled');
-            btn.title = btn.getAttribute('data-original-title') || '';
-        }
+        // Allow switching between operations - don't disable unary buttons when in binary mode
+        btn.classList.remove('disabled');
+        btn.classList.add('enabled');
+        btn.title = btn.getAttribute('data-original-title') || '';
 
         if (pendingUnaryOp === op) {
             btn.classList.add('selected');
@@ -1213,15 +1208,10 @@ function updateAllButtonStates() {
             btn.title = btn.getAttribute('data-original-title') || '';
         } else {
             btn.classList.remove('selected');
-            if (isUnaryMode) {
-                btn.classList.add('disabled');
-                btn.classList.remove('enabled');
-                btn.title = 'Binary operations are disabled while a unary operation is active';
-            } else {
-                btn.classList.remove('disabled');
-                btn.classList.add('enabled');
-                btn.title = btn.getAttribute('data-original-title') || '';
-            }
+            // Allow switching between operations - don't disable binary buttons when in unary mode
+            btn.classList.remove('disabled');
+            btn.classList.add('enabled');
+            btn.title = btn.getAttribute('data-original-title') || '';
         }
     });
     
