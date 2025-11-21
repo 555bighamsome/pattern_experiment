@@ -537,7 +537,6 @@ function loadTrial(index) {
         stepsCount: 0,
         timeSpent: 0,
         success: null,
-        skipped: false,
         submitted: false,
         pointsEarned: 0,
         pointsAwarded: 0,
@@ -1015,12 +1014,53 @@ function onWorkflowClick(idx) {
 }
 
 function toggleWorkflowSelection(idx) {
-    // Record workflow selection toggle for cognitive navigation analysis
+    const pos = workflowSelections.indexOf(idx);
+    const isCurrentlySelected = pos !== -1;
+    
+    // Check if this action will be blocked before recording
+    if (isCurrentlySelected && (pendingBinaryOp || pendingUnaryOp)) {
+        // In operation mode, don't allow deselecting operands - use Reset instead
+        showToast('Cannot deselect operand. Use ⟲ Reset to cancel the operation.', 'warning');
+        // Record the attempted (but blocked) deselect action
+        if (currentTrialRecord) {
+            if (!currentTrialRecord.workflowActions) {
+                currentTrialRecord.workflowActions = [];
+            }
+            currentTrialRecord.workflowActions.push({
+                action: 'deselect_blocked',
+                index: idx,
+                mode: pendingBinaryOp ? 'binary' : 'unary',
+                currentSelections: [...workflowSelections],
+                timestamp: Date.now()
+            });
+        }
+        return;
+    }
+    
+    // Check if selection will be blocked (too many operands)
+    if (!isCurrentlySelected && pendingBinaryOp && workflowSelections.length >= 2) {
+        showToast('Two operands are already selected. Use ⟲ Reset to cancel the operation.', 'warning');
+        // Record the attempted (but blocked) selection
+        if (currentTrialRecord) {
+            if (!currentTrialRecord.workflowActions) {
+                currentTrialRecord.workflowActions = [];
+            }
+            currentTrialRecord.workflowActions.push({
+                action: 'select_blocked',
+                index: idx,
+                reason: 'max_operands',
+                currentSelections: [...workflowSelections],
+                timestamp: Date.now()
+            });
+        }
+        return;
+    }
+    
+    // Record the actual (successful) selection/deselection
     if (currentTrialRecord) {
         if (!currentTrialRecord.workflowActions) {
             currentTrialRecord.workflowActions = [];
         }
-        const isCurrentlySelected = workflowSelections.indexOf(idx) !== -1;
         currentTrialRecord.workflowActions.push({
             action: isCurrentlySelected ? 'deselect' : 'select',
             index: idx,
@@ -1029,16 +1069,10 @@ function toggleWorkflowSelection(idx) {
         });
     }
     
-    const pos = workflowSelections.indexOf(idx);
     if (pos === -1) {
         // allow up to 2 selections, preserve click order
         if (pendingUnaryOp) {
             workflowSelections = [];
-        }
-        // If already have two operands in binary mode, do not replace them.
-        if (pendingBinaryOp && workflowSelections.length >= 2) {
-            showToast('Two operands are already selected. Use ⟲ Reset to cancel the operation.', 'warning');
-            return;
         }
         if (workflowSelections.length >= 2) {
             // non-binary fallback behavior: shift oldest selection
@@ -1048,11 +1082,6 @@ function toggleWorkflowSelection(idx) {
         }
         workflowSelections.push(idx);
     } else {
-        // In operation mode, don't allow deselecting operands - use Reset instead
-        if (pendingBinaryOp || pendingUnaryOp) {
-            showToast('Cannot deselect operand. Use ⟲ Reset to cancel the operation.', 'warning');
-            return;
-        }
         // Normal mode: remove existing selection
         workflowSelections.splice(pos, 1);
         if (inlinePreview.aIndex === idx) inlinePreview.aIndex = null;

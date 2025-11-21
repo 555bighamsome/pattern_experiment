@@ -157,10 +157,35 @@ body {
 
 .instruction ul {
     margin-left: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.instruction ol {
+    margin-left: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 .instruction li {
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.85rem;
+    line-height: 1.7;
+}
+
+.instruction p {
+    line-height: 1.75;
+    margin-bottom: 1rem;
+}
+
+.instruction .content-line {
+    margin-bottom: 0.5rem;
+}
+
+.instruction .content-line h3 {
+    margin-top: 2.5rem;
+    margin-bottom: 1.2rem;
+}
+
+.instruction .content-line:first-child h3 {
+    margin-top: 1.5rem;
 }
 
 /* Button group */
@@ -237,6 +262,16 @@ body {
     line-height: 1.6;
 }
 
+#consent-info p {
+    line-height: 1.7;
+    margin-bottom: 1rem;
+}
+
+#consent-info p strong {
+    margin-top: 1.2rem;
+    display: inline-block;
+}
+
 #consent-info a {
     color: #2563eb;
     text-decoration: none;
@@ -244,6 +279,64 @@ body {
 
 #consent-info a:hover {
     text-decoration: underline;
+}
+
+/* Reminder page styles */
+#reminder .frame p {
+    line-height: 1.8;
+    margin-bottom: 1rem;
+    font-size: 1.05rem;
+}
+
+#reminder .frame ul {
+    margin-top: 1rem;
+    margin-left: 1.5rem;
+}
+
+#reminder .frame li {
+    margin-bottom: 1rem;
+    line-height: 1.7;
+    font-size: 1.05rem;
+}
+
+/* Comprehension page styles */
+#comprehension .frame {
+    padding: 2.5em 3.5em;
+}
+
+#comprehension form ol {
+    counter-reset: question-counter;
+    list-style: none;
+    padding-left: 0;
+}
+
+#comprehension form ol > li {
+    counter-increment: question-counter;
+    margin-bottom: 2rem;
+    font-weight: 600;
+    font-size: 1.05rem;
+    line-height: 1.6;
+}
+
+#comprehension form ol > li::before {
+    content: counter(question-counter) ". ";
+}
+
+#comprehension form p {
+    margin-top: 0.8rem;
+    margin-bottom: 0;
+    padding-left: 1.5rem;
+    font-weight: normal;
+}
+
+#comprehension form p label,
+#comprehension form p input[type="radio"] + text {
+    line-height: 2;
+}
+
+#comprehension form input[type="radio"] {
+    margin-right: 0.5rem;
+    margin-bottom: 0.3rem;
 }
 
 /* Task page styles */

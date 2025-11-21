@@ -93,6 +93,20 @@ function sanitizeTrialRecord(trial) {
         timestamp: action.timestamp
     }));
 
+    const mapWorkflowActions = (actions = []) => actions.map(action => ({
+        action: action.action,  // 'click', 'select', 'deselect', 'select_blocked', 'deselect_blocked'
+        index: action.index,
+        mode: action.mode,
+        reason: action.reason,  // for blocked actions
+        timestamp: action.timestamp
+    }));
+
+    const mapPreviewActions = (actions = []) => actions.map(action => ({
+        action: action.action,  // 'confirm' or 'cancel'
+        operationType: action.operationType,
+        timestamp: action.timestamp
+    }));
+
     return {
         trial: trial.trial,
         actualProblemIndex: trial.actualProblemIndex,
@@ -102,11 +116,12 @@ function sanitizeTrialRecord(trial) {
         operations: Array.isArray(trial.operations) ? trial.operations : [],
         buttonClickActions: mapButtonActions(trial.buttonClickActions),
         favoriteActions: mapFavoriteActions(trial.favoriteActions),
+        workflowActions: mapWorkflowActions(trial.workflowActions),
+        previewActions: mapPreviewActions(trial.previewActions),
         undoActions: mapUndoActions(trial.undoActions),
         stepsCount: trial.stepsCount,
         timeSpent: trial.timeSpent,
         success: trial.success,
-        skipped: trial.skipped,
         submitted: trial.submitted,
         startedAt: trial.startedAt
     };
@@ -350,10 +365,12 @@ function useFavoritePattern(id, pattern) {
         if (!aSource) {
             inlinePreview.aPattern = pattern;
             inlinePreview.aIndex = null;
+            inlinePreview.aFromFavorite = true; // Mark that operand A came from favorites
             filled = 'a';
         } else if (!bSource) {
             inlinePreview.bPattern = pattern;
             inlinePreview.bIndex = null;
+            inlinePreview.bFromFavorite = true; // Mark that operand B came from favorites
             filled = 'b';
         } else {
             showToast('Both operands are already selected.', 'warning');
@@ -412,7 +429,9 @@ function createInlinePreviewState() {
         aIndex: null,
         bIndex: null,
         aPattern: null, // temp operand from primitives (not logged)
-        bPattern: null
+        bPattern: null,
+        aFromFavorite: false, // track if operand A came from favorites
+        bFromFavorite: false  // track if operand B came from favorites
     };
 }
 
@@ -599,7 +618,6 @@ function loadTrial(index) {
         stepsCount: 0,
         timeSpent: 0,
         success: null,
-        skipped: false,
         submitted: false,
         pointsEarned: 0,
         pointsAwarded: 0,
@@ -1076,12 +1094,53 @@ function onWorkflowClick(idx) {
 }
 
 function toggleWorkflowSelection(idx) {
-    // Record workflow selection toggle for cognitive navigation analysis
+    const pos = workflowSelections.indexOf(idx);
+    const isCurrentlySelected = pos !== -1;
+    
+    // Check if this action will be blocked before recording
+    if (isCurrentlySelected && (pendingBinaryOp || pendingUnaryOp)) {
+        // In operation mode, don't allow deselecting operands - use Reset instead
+        showToast('Cannot deselect operand. Use ⟲ Reset to cancel the operation.', 'warning');
+        // Record the attempted (but blocked) deselect action
+        if (currentTrialRecord) {
+            if (!currentTrialRecord.workflowActions) {
+                currentTrialRecord.workflowActions = [];
+            }
+            currentTrialRecord.workflowActions.push({
+                action: 'deselect_blocked',
+                index: idx,
+                mode: pendingBinaryOp ? 'binary' : 'unary',
+                currentSelections: [...workflowSelections],
+                timestamp: Date.now()
+            });
+        }
+        return;
+    }
+    
+    // Check if selection will be blocked (too many operands)
+    if (!isCurrentlySelected && pendingBinaryOp && workflowSelections.length >= 2) {
+        showToast('Two operands are already selected. Use ⟲ Reset to cancel the operation.', 'warning');
+        // Record the attempted (but blocked) selection
+        if (currentTrialRecord) {
+            if (!currentTrialRecord.workflowActions) {
+                currentTrialRecord.workflowActions = [];
+            }
+            currentTrialRecord.workflowActions.push({
+                action: 'select_blocked',
+                index: idx,
+                reason: 'max_operands',
+                currentSelections: [...workflowSelections],
+                timestamp: Date.now()
+            });
+        }
+        return;
+    }
+    
+    // Record the actual (successful) selection/deselection
     if (currentTrialRecord) {
         if (!currentTrialRecord.workflowActions) {
             currentTrialRecord.workflowActions = [];
         }
-        const isCurrentlySelected = workflowSelections.indexOf(idx) !== -1;
         currentTrialRecord.workflowActions.push({
             action: isCurrentlySelected ? 'deselect' : 'select',
             index: idx,
@@ -1090,16 +1149,10 @@ function toggleWorkflowSelection(idx) {
         });
     }
     
-    const pos = workflowSelections.indexOf(idx);
     if (pos === -1) {
         // allow up to 2 selections, preserve click order
         if (pendingUnaryOp) {
             workflowSelections = [];
-        }
-        // If already have two operands in binary mode, do not replace them.
-        if (pendingBinaryOp && workflowSelections.length >= 2) {
-            showToast('Two operands are already selected. Use ⟲ Reset to cancel the operation.', 'warning');
-            return;
         }
         if (workflowSelections.length >= 2) {
             // non-binary fallback behavior: shift oldest selection
@@ -1109,11 +1162,6 @@ function toggleWorkflowSelection(idx) {
         }
         workflowSelections.push(idx);
     } else {
-        // In operation mode, don't allow deselecting operands - use Reset instead
-        if (pendingBinaryOp || pendingUnaryOp) {
-            showToast('Cannot deselect operand. Use ⟲ Reset to cancel the operation.', 'warning');
-            return;
-        }
         // Normal mode: remove existing selection
         workflowSelections.splice(pos, 1);
         if (inlinePreview.aIndex === idx) inlinePreview.aIndex = null;
@@ -1279,6 +1327,11 @@ function applySelectedBinary() {
     const last = operationsHistory[operationsHistory.length - 1];
     last.opFn = pendingBinaryOp;
     last.operands = { a: a, b: b };
+    
+    // Mark if any operand came from favorites
+    if (inlinePreview.aFromFavorite || inlinePreview.bFromFavorite) {
+        last.helperUsed = true;
+    }
     
     // Auto-select the newly added operation (last line)
     workflowSelections = [operationsHistory.length - 1];
@@ -1494,6 +1547,11 @@ function applySelectedUnary() {
     last.opFn = pendingUnaryOp;
     last.operands = { input: operandCopy };
     last.operandSource = operandSourceMeta;
+    
+    // Mark if operand came from favorites
+    if (operandSourceMeta && operandSourceMeta.type === 'favorite') {
+        last.helperUsed = true;
+    }
 
     // Auto-select the newly added operation (last line)
     workflowSelections = [operationsHistory.length - 1];
