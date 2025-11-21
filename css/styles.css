@@ -312,10 +312,10 @@ body {
 
 #comprehension form ol > li {
     counter-increment: question-counter;
-    margin-bottom: 2rem;
+    margin-bottom: 0.3rem;
     font-weight: 600;
     font-size: 1.05rem;
-    line-height: 1.6;
+    line-height: 1.4;
 }
 
 #comprehension form ol > li::before {
@@ -323,20 +323,24 @@ body {
 }
 
 #comprehension form p {
-    margin-top: 0.8rem;
-    margin-bottom: 0;
+    margin-top: 0;
+    margin-bottom: 2rem;
     padding-left: 1.5rem;
     font-weight: normal;
-}
-
-#comprehension form p label,
-#comprehension form p input[type="radio"] + text {
-    line-height: 2;
+    line-height: 2.2;
+    font-size: 1rem;
 }
 
 #comprehension form input[type="radio"] {
-    margin-right: 0.5rem;
-    margin-bottom: 0.3rem;
+    margin-right: 0.6rem;
+    margin-bottom: 0;
+    vertical-align: middle;
+}
+
+#comprehension form p br {
+    display: block;
+    content: "";
+    margin-top: 0.4rem;
 }
 
 /* Task page styles */
