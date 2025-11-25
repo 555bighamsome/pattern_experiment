@@ -45,11 +45,11 @@
                     <div class="binary-inline-close">)</div>
                 </div>
                 <div class="binary-preview-footer">
-                    <button id="binaryResetBtn" class="btn btn-warning binary-cancel-btn" onclick="resetPendingOperation()" disabled>
-                        ⟲ Reset
-                    </button>
                     <button id="binaryConfirmBtn" class="btn btn-success binary-confirm-btn" onclick="confirmPendingOperation()" disabled>
                         ✓ Confirm
+                    </button>
+                    <button id="binaryResetBtn" class="btn btn-warning binary-cancel-btn" onclick="resetPendingOperation()" disabled>
+                        ⟲ Reset
                     </button>
                 </div>
             </div>
@@ -123,7 +123,7 @@
                 </div>
                 <div class="controls-section helpers-section">
                     <div class="helpers-header-row">
-                        <h4 class="panel-subtitle">YOUR HELPERS</h4>
+                        <h3 class="helpers-title">YOUR HELPERS</h3>
                     </div>
                     <div class="section-panel helpers-panel">
                         <div id="favoritesShelf" class="helpers-grid">
@@ -135,7 +135,7 @@
 
             <div class="panel-card program-card">
                 <div class="program-header">
-                    <h4 class="panel-subtitle">STEP SEQUENCE</h4>
+                    <h3>STEP SEQUENCE</h3>
                     <button class="btn btn-success program-submit" onclick="submitAnswer()" title="Submit your answer and proceed to next pattern">
                         <span style="font-size:1.1rem; margin-right:0.2rem;">✓</span> Submit
                     </button>
@@ -155,43 +155,41 @@
         </div>
 
         <!-- Completion Modal -->
-        <div class="completion-modal" id="completionModal" style="display: none;">
-            <div class="completion-content">
-                <div class="completion-header">
-                    <h2>🎉 Experiment Complete!</h2>
-                </div>
-                <div class="completion-body">
-                    <p class="completion-message">
-                        Thank you for completing the experiment!
-                    </p>
-                    <div class="completion-stats">
-                        <div class="stat-item">
-                            <span class="stat-label">Final Score:</span>
-                            <span class="stat-value">
-                                <span id="finalPointsValue">0</span> / <span id="finalPointsMax">20</span> points
-                            </span>
+        <div class="completion-modal modal" id="completionModal" style="display: none;">
+            <div class="modal-overlay"></div>
+            <div class="modal-content" style="max-width: 600px; background: #ffffff; color: #1e293b;">
+                <div class="completion-container">
+                    <div class="completion-header" style="background: linear-gradient(135deg, #3b82f6, #2563eb); padding: 2rem; border-radius: 12px 12px 0 0; margin: -2.5rem -3rem 2rem -3rem;">
+                        <h2 style="color: #ffffff; font-size: 1.75rem; margin: 0 0 0.5rem 0;">Experiment Complete!</h2>
+                        <p style="color: #e0f2fe; margin: 0; font-size: 1rem;">Thank you for completing the experiment!</p>
+                    </div>
+                    <div class="completion-body">
+                        <div style="background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; text-align: center;">
+                            <div style="color: #64748b; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; margin-bottom: 0.5rem;">Final Score</div>
+                            <div style="color: #1e40af; font-size: 2rem; font-weight: 700;">
+                                <span id="finalPointsValue">0</span> / <span id="finalPointsMax">20</span>
+                            </div>
+                        </div>
+                        <div class="completion-actions" style="margin: 2rem 0 1.5rem 0; display: flex; flex-direction: column; gap: 0.75rem;">
+                            <button class="btn btn-primary btn-large" id="downloadTaskOnlyBtn" onclick="downloadTaskDataOnly()" style="width: 100%; padding: 1rem; font-size: 1rem; background: #3b82f6; border: none;">
+                                ⬇ Download Data & Exit
+                            </button>
+                            <button class="btn btn-primary btn-large" id="enterFreePlayBtn" onclick="enterFreePlayMode()" style="width: 100%; padding: 1rem; font-size: 1rem; background: #8b5cf6; border: none;">
+                                Continue to Free Play Mode
+                            </button>
+                        </div>
+                        <div style="background: #f1f5f9; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                            <p style="color: #475569; font-size: 0.85rem; margin: 0; line-height: 1.6;">
+                                <strong style="color: #1e40af;">Option 1:</strong> Download your task data and exit.<br>
+                                <strong style="color: #7c3aed;">Option 2:</strong> Continue to Free Play mode to create patterns, then download combined data.
+                            </p>
+                        </div>
+                        <div style="background: #f1f5f9; padding: 1rem; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                            <p style="color: #334155; font-size: 0.9rem; margin: 0; text-align: center;">
+                                Please send your data file to: <strong style="color: #1e40af;">s2471381@ed.ac.uk</strong> (Zach)
+                            </p>
                         </div>
                     </div>
-                    <div class="completion-actions">
-                        <button class="btn btn-success btn-large" onclick="enterFreePlay()" style="margin-bottom: 10px;">
-                            <span style="font-size: 1.2rem; margin-right: 0.5rem;">✨</span>
-                            Enter Creative Mode (Free Play)
-                        </button>
-                        <div style="margin: 10px 0; color: #94a3b8;">— OR —</div>
-                        <button class="btn btn-primary btn-large" id="downloadDataBtn" onclick="downloadExperimentData()">
-                            <span style="font-size: 1.2rem; margin-right: 0.5rem;">⬇</span>
-                            Finish & Download Data
-                        </button>
-                    </div>
-                    <p class="completion-note">
-                        Your data has been collected for research purposes. Click the button above to download a copy.
-                    </p>
-                    <p class="completion-contact">
-                        Please send your data file to: <strong>s2471381@ed.ac.uk</strong> (Zach)
-                    </p>
-                    <p class="completion-feedback">
-                        We welcome any feedback or comments about this experiment!
-                    </p>
                 </div>
             </div>
         </div>

@@ -1,10 +1,4 @@
-import {
-    POINTS_MAX,
-    appState,
-    checkTutorialProgress,
-    isTutorialMode,
-    globalScope
-} from './modules/state.js';
+import { appState, globalScope, SIZE } from './modules/state.js';
 import { showToast } from './modules/toast.js';
 import {
     geomDSL,
@@ -15,327 +9,217 @@ import {
     renderThumbnail,
     initializePrimitiveIcons
 } from './modules/patterns.js';
-import {
-    testCases,
-    shuffleArray,
-    getTestCaseCount
-} from './modules/testData.js';
 
-// (favorites popup legacy removed)
+// Free Play Mode - Global State
+let currentPattern = geomDSL.blank();
+let operationsHistory = [];
+let workflowSelections = [];
+let pendingBinaryOp = null;
+let pendingUnaryOp = null;
+let previewPattern = null;
+let previewBackupPattern = null;
+let unaryModeJustEntered = false;
+let favorites = [];
+let inlinePreview;
+let unaryPreviewState;
 
-appState.inlinePreview = createInlinePreviewState();
-appState.unaryPreviewState = createUnaryPreviewState();
+// Session recording for research analysis
+let sessionRecord = null;
 
-// Free Play State
-let gallery = [];
-let freePlaySession = {
-    startTime: Date.now(),
-    creations: []
-};
+// Initialize state objects
+function createInlinePreviewState() {
+    return {
+        op: null,
+        aIndex: null,
+        bIndex: null,
+        aPattern: null,
+        bPattern: null,
+        aFromFavorite: false,
+        bFromFavorite: false
+    };
+}
 
-// Load data passed from the main experiment
-try {
-    const storedData = localStorage.getItem('experimentData');
-    if (storedData) {
-        allTrialsData = JSON.parse(storedData);
-    }
-    const storedFavorites = localStorage.getItem('experimentFavorites');
-    if (storedFavorites) {
-        favorites = JSON.parse(storedFavorites);
-    }
-} catch (e) {
-    console.error("Failed to load experiment data", e);
+function createUnaryPreviewState() {
+    return {
+        op: null,
+        source: null
+    };
+}
+
+inlinePreview = createInlinePreviewState();
+unaryPreviewState = createUnaryPreviewState();
+appState.inlinePreview = inlinePreview;
+appState.unaryPreviewState = unaryPreviewState;
+
+// Initialize session record
+function initializeSessionRecord() {
+    sessionRecord = {
+        sessionId: `freeplay_${Date.now()}`,
+        startTime: Date.now(),
+        endTime: null,
+        totalDuration: null,
+        
+        // All actions taken during the session
+        buttonClickActions: [],
+        favoriteActions: [],
+        operationActions: [],
+        
+        // Final state
+        finalPattern: null,
+        totalOperations: 0,
+        patternsCreated: [],
+        helperUsageCount: {},
+        
+        // Session metadata
+        userAgent: navigator.userAgent,
+        screenSize: { width: window.innerWidth, height: window.innerHeight }
+    };
+}
+
+// Log button clicks
+function logButtonClick(buttonType, operationName, context = {}) {
+    if (!sessionRecord) return;
+    sessionRecord.buttonClickActions.push({
+        buttonType,
+        operation: operationName,
+        context,
+        timestamp: Date.now()
+    });
+}
+
+// Log operation completion
+function logOperationComplete(operation, operands, result) {
+    if (!sessionRecord) return;
+    sessionRecord.operationActions.push({
+        operation,
+        operands: {
+            a: operands.a ? JSON.parse(JSON.stringify(operands.a)) : null,
+            b: operands.b ? JSON.parse(JSON.stringify(operands.b)) : null,
+            input: operands.input ? JSON.parse(JSON.stringify(operands.input)) : null
+        },
+        result: JSON.parse(JSON.stringify(result)),
+        operationIndex: operationsHistory.length,
+        timestamp: Date.now()
+    });
+}
+
+// Save session to localStorage
+function saveSessionRecord() {
+    if (!sessionRecord) return;
+    
+    sessionRecord.endTime = Date.now();
+    sessionRecord.totalDuration = sessionRecord.endTime - sessionRecord.startTime;
+    sessionRecord.finalPattern = currentPattern ? JSON.parse(JSON.stringify(currentPattern)) : null;
+    sessionRecord.totalOperations = operationsHistory.length;
+    
+    // Save to localStorage
+    const allSessions = JSON.parse(localStorage.getItem('freeplaySessions') || '[]');
+    allSessions.push(sessionRecord);
+    localStorage.setItem('freeplaySessions', JSON.stringify(allSessions));
+}
+
+// ============ GALLERY FUNCTIONS ============
+function getGalleryFromStorage() {
+    const stored = localStorage.getItem('patternGallery');
+    return stored ? JSON.parse(stored) : [];
+}
+
+function saveGalleryToStorage(gallery) {
+    localStorage.setItem('patternGallery', JSON.stringify(gallery));
 }
 
 function updateGalleryCount() {
     const el = document.getElementById('galleryCount');
     if (el) {
+        const gallery = getGalleryFromStorage();
         el.textContent = String(gallery.length);
     }
 }
 
-function renderGallery() {
-    const grid = document.getElementById('galleryGrid');
-    if (!grid) return;
-    
-    grid.innerHTML = '';
-    
-    if (gallery.length === 0) {
-        grid.innerHTML = '<div class="gallery-empty">Your saved creations will appear here</div>';
+function saveToGallery() {
+    if (!currentPattern) {
+        showToast('Create a pattern first!', 'warning');
         return;
     }
-
-    gallery.forEach((item, index) => {
-        const div = document.createElement('div');
-        div.className = 'gallery-item';
-        div.title = `Creation #${index + 1}`;
-        
-        const img = document.createElement('img');
-        img.src = item.thumbnail;
-        img.style.width = '100%';
-        img.style.height = '100%';
-        img.style.objectFit = 'contain';
-        
-        div.appendChild(img);
-        grid.appendChild(div);
-    });
-}
-
-function saveToGallery() {
-    if (!currentPattern) return;
     
-    // Generate thumbnail
-    const canvas = document.createElement('canvas');
-    canvas.width = 200;
-    canvas.height = 200;
-    const ctx = canvas.getContext('2d');
-    
-    // Render current pattern to this canvas
-    // We can use the existing renderThumbnail helper or just grab the workspace canvas
-    // But workspace canvas might be DOM based. Let's use renderThumbnail if available or renderPattern
-    // renderThumbnail(currentPattern, canvas); // Assuming this exists and works
-    
-    // Fallback: use html2canvas or just renderPattern to a hidden canvas
-    // Since renderPattern renders to a div, we might need to grab the canvas inside it if it exists
-    // Or use the DSL to render to a canvas context.
-    // For now, let's assume we can get a dataURL from the workspace if it uses canvas, 
-    // OR we use the pattern data to generate a small SVG/Canvas.
-    
-    // Actually, let's use the `renderThumbnail` from modules/patterns.js if it supports canvas
-    // If not, we'll just store the pattern data and render it live in the gallery.
-    
-    // Let's try to capture the workspace.
-    // If workspace is using DOM elements (divs), we can't easily toDataURL.
-    // But we have the pattern data! We can just store that and render it in the gallery.
+    const gallery = getGalleryFromStorage();
+    const totalOps = operationsHistory.length;
     
     const creation = {
         id: Date.now(),
         pattern: JSON.parse(JSON.stringify(currentPattern)),
-        timestamp: Date.now(),
-        thumbnail: null // We will render this in the gallery view
+        operations: operationsHistory.map(h => h.operation),
+        operationsHistory: JSON.parse(JSON.stringify(operationsHistory)), // Full history
+        totalOperations: totalOps,
+        timestamp: new Date().toISOString(),
+        createdAt: Date.now(),
+        sessionId: sessionRecord ? sessionRecord.sessionId : null // Link to session
     };
     
-    // Create a temporary canvas to generate a dataURL for the thumbnail
-    const thumbCanvas = document.createElement('canvas');
-    thumbCanvas.width = 100;
-    thumbCanvas.height = 100;
-    renderThumbnail(currentPattern, thumbCanvas);
-    creation.thumbnail = thumbCanvas.toDataURL();
-
     gallery.push(creation);
-    freePlaySession.creations.push(creation);
-    
+    saveGalleryToStorage(gallery);
     updateGalleryCount();
-    renderGallery();
     
-    // Show achievement toast
-    showAchievement();
+    // Save session record with this pattern
+    saveSessionRecord();
     
-    showToast('Saved to Gallery!', 'success');
+    showToast(`Saved to gallery! (${totalOps} operations)`, 'success', 2000);
 }
 
-function showAchievement() {
-    const container = document.getElementById('achievementContainer');
-    const toast = document.createElement('div');
-    toast.className = 'achievement-toast';
-    toast.innerHTML = '<span>🎨</span> <span>Masterpiece Saved!</span>';
-    container.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.remove();
-    }, 2000);
+function viewGallery() {
+    window.location.href = 'gallery.html';
 }
 
-function finishFreePlay() {
-    // Combine original data with free play data
-    const finalData = {
-        experimentData: allTrialsData,
-        freePlaySession: freePlaySession,
-        gallery: gallery
-    };
-    
-    // Trigger download
-    const jsonString = JSON.stringify(finalData, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-    link.download = `pattern_experiment_complete_${timestamp}.json`;
-    link.href = url;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    showToast('Session Finished & Data Downloaded!', 'success');
-}
-
-function initFreePlay() {
-    // Initialize UI
-    initializePrimitiveIcons();
-    updateGalleryCount();
-    renderFavoritesShelf(); // Render imported favorites
-    
-    // Start with blank workspace
-    resetWorkspace();
-    
-    // Setup event listeners
-    setupTooltips();
-    registerKeyboardShortcuts();
-    
-    console.log("Free Play Mode Initialized");
-}
-
-// Run on initial load
-document.addEventListener('DOMContentLoaded', () => {
-    initializeApp(); // Sets up global state
-    initFreePlay();
-});
-
-Object.assign(globalScope, {
-    initFreePlay,
-    selectBinaryOp,
-    applyTransform,
-    applyPrimitive,
-    confirmPendingOperation,
-    resetPendingOperation,
-    saveToGallery, // Replaces submitAnswer
-    addLastToFavorites,
-    undoLast,
-    resetWorkspace,
-    finishFreePlay
-});
-
-function sanitizeTrialRecord(trial) {
-    if (!trial) return null;
-    if (trial.metadata) {
-        return {
-            metadata: {
-                randomized: !!trial.metadata.randomized,
-                order: Array.isArray(trial.metadata.order) ? trial.metadata.order : []
-            }
-        };
-    }
-
-    const mapSteps = (steps = []) => steps.map(step => ({
-        id: step.id,
-        operation: step.operation,
-        pattern: step.pattern,
-        timestamp: step.timestamp,
-        intervalFromLast: step.intervalFromLast,
-        opFn: step.opFn,
-        operands: step.operands
-    }));
-
-    const mapButtonActions = (actions = []) => actions.map(action => ({
-        buttonType: action.buttonType,
-        operation: action.operation,
-        context: action.context,
-        timestamp: action.timestamp
-    }));
-
-    const mapFavoriteActions = (actions = []) => actions.map(action => ({
-        action: action.action,
-        favoriteId: action.favoriteId,
-        operation: action.operation,
-        pattern: action.pattern,
-        opFn: action.opFn,
-        operands: action.operands,
-        context: action.context,
-        usedAs: action.usedAs,
-        timestamp: action.timestamp
-    }));
-
-    const mapUndoActions = (actions = []) => actions.map(action => ({
-        type: action.type,
-        stepsCleared: action.stepsCleared,
-        timestamp: action.timestamp
-    }));
-
-    const mapWorkflowActions = (actions = []) => actions.map(action => ({
-        action: action.action,  // 'click', 'select', 'deselect', 'select_blocked', 'deselect_blocked'
-        index: action.index,
-        mode: action.mode,
-        reason: action.reason,  // for blocked actions
-        timestamp: action.timestamp
-    }));
-
-    const mapPreviewActions = (actions = []) => actions.map(action => ({
-        action: action.action,  // 'confirm' or 'cancel'
-        operationType: action.operationType,
-        timestamp: action.timestamp
-    }));
-
-    return {
-        trial: trial.trial,
-        actualProblemIndex: trial.actualProblemIndex,
-        testName: trial.testName,
-        targetPattern: trial.targetPattern,
-        steps: mapSteps(trial.steps),
-        operations: Array.isArray(trial.operations) ? trial.operations : [],
-        buttonClickActions: mapButtonActions(trial.buttonClickActions),
-        favoriteActions: mapFavoriteActions(trial.favoriteActions),
-        workflowActions: mapWorkflowActions(trial.workflowActions),
-        previewActions: mapPreviewActions(trial.previewActions),
-        undoActions: mapUndoActions(trial.undoActions),
-        stepsCount: trial.stepsCount,
-        timeSpent: trial.timeSpent,
-        success: trial.success,
-        submitted: trial.submitted,
-        startedAt: trial.startedAt
-    };
-}
-
-function downloadExperimentData() {
-    const sanitizedTrials = allTrialsData
-        .map(sanitizeTrialRecord)
-        .filter(Boolean);
-
-    const experimentData = {
-        metadata: {
-            experimentName: 'Pattern DSL Experiment',
-            completionTime: new Date().toISOString(),
-            browserInfo: {
-                language: navigator.language
-            }
-        },
-        trials: sanitizedTrials,
-        summary: {
-            successfulTrials: sanitizedTrials.filter(t => t && t.success === true).length
+function clearWorkspace() {
+    if (operationsHistory.length > 0) {
+        if (!confirm('Clear all work and start fresh? This cannot be undone.')) {
+            return;
         }
-    };
-
-    // Convert to JSON string with formatting
-    const jsonString = JSON.stringify(experimentData, null, 2);
+    }
     
-    // Create blob and download
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    currentPattern = geomDSL.blank();
+    operationsHistory = [];
+    favorites = [];
+    workflowSelections = [];
+    pendingBinaryOp = null;
+    pendingUnaryOp = null;
+    previewPattern = null;
+    previewBackupPattern = null;
+    inlinePreview = createInlinePreviewState();
+    unaryPreviewState = createUnaryPreviewState();
     
-    // Generate filename with timestamp
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-    link.download = `pattern_experiment_data_${timestamp}.json`;
-    link.href = url;
+    renderPattern(currentPattern, 'workspace');
+    renderWorkflow();
+    renderFavoritesShelf();
+    updateAllButtonStates();
+    updateInlinePreviewPanel();
+    setWorkspaceGlow(false);
     
-    // Trigger download
-    document.body.appendChild(link);
-    link.click();
-    
-    // Cleanup
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
-    showToast('Data downloaded successfully!', 'success', 2000);
+    showToast('Workspace cleared. Start creating!', 'info');
 }
 
-// Make function globally accessible
-globalScope.downloadExperimentData = downloadExperimentData;
+// ============ FAVORITES SYSTEM ============
+// Load favorites from localStorage
+function loadFavoritesFromStorage() {
+    try {
+        const stored = localStorage.getItem('patternHelpers');
+        if (stored) {
+            return JSON.parse(stored);
+        }
+    } catch (e) {
+        console.warn('Failed to load favorites from localStorage:', e);
+    }
+    return [];
+}
 
-// --- TUTORIAL STATE (removed) ---
-// Keep minimal stubs so the rest of the code can call without effects.
-// --- FAVORITES SYSTEM (persist across trials) ---
-// Store snapshots, not indices, so favorites survive when operationsHistory resets between trials
-// favorites: Array<{ id: string, pattern: number[][], op?: string, meta?: { opFn?: string, operands?: { a?: number[][], b?: number[][], input?: number[][] } }, createdAt: number }>
+// Save favorites to localStorage
+function saveFavoritesToStorage() {
+    try {
+        localStorage.setItem('patternHelpers', JSON.stringify(favorites));
+    } catch (e) {
+        console.warn('Failed to save favorites to localStorage:', e);
+    }
+}
 
 function patternsEqual(a, b) {
     if (!a || !b || a.length !== b.length) return false;
@@ -349,7 +233,6 @@ function patternsEqual(a, b) {
     return true;
 }
 
-// Calculate visual features of a pattern for cognitive analysis
 function isPatternFavorited(pattern) {
     return favorites.some(f => patternsEqual(f.pattern, pattern));
 }
@@ -357,87 +240,77 @@ function isPatternFavorited(pattern) {
 function addFavoriteFromEntry(entry) {
     if (!entry || !entry.pattern) return;
     const pattern = entry.pattern;
-    if (isPatternFavorited(pattern)) return; // no duplicates
+    if (isPatternFavorited(pattern)) return;
+    
     const id = `fav_${Date.now()}_${Math.floor(Math.random()*1000)}`;
     const snapshot = {
         id,
         pattern: JSON.parse(JSON.stringify(pattern)),
         op: entry.operation || '',
         meta: {
-            opFn: entry.opFn || undefined,
-            operands: entry.operands ? {
-                a: entry.operands.a ? JSON.parse(JSON.stringify(entry.operands.a)) : undefined,
-                b: entry.operands.b ? JSON.parse(JSON.stringify(entry.operands.b)) : undefined,
-                input: entry.operands.input ? JSON.parse(JSON.stringify(entry.operands.input)) : undefined
-            } : undefined
+            opFn: entry.opFn,
+            operands: entry.operands
         },
         createdAt: Date.now()
     };
     favorites.push(snapshot);
+    saveFavoritesToStorage(); // Persist to localStorage
     
-    // Record favorite action for cognitive analysis with complete pattern data
-    if (currentTrialRecord) {
-        if (!currentTrialRecord.favoriteActions) {
-            currentTrialRecord.favoriteActions = [];
+    // Log favorite addition for research
+    if (sessionRecord) {
+        if (!sessionRecord.favoriteActions) {
+            sessionRecord.favoriteActions = [];
         }
-        
-        currentTrialRecord.favoriteActions.push({
+        sessionRecord.favoriteActions.push({
             action: 'add',
             favoriteId: id,
             operation: entry.operation,
-            pattern: JSON.parse(JSON.stringify(pattern)), // Complete 10x10 matrix
+            pattern: JSON.parse(JSON.stringify(pattern)),
             opFn: entry.opFn,
-            operands: entry.operands ? {
-                a: entry.operands.a ? JSON.parse(JSON.stringify(entry.operands.a)) : undefined,
-                b: entry.operands.b ? JSON.parse(JSON.stringify(entry.operands.b)) : undefined,
-                input: entry.operands.input ? JSON.parse(JSON.stringify(entry.operands.input)) : undefined
-            } : undefined,
+            operands: entry.operands,
             timestamp: Date.now()
         });
     }
 }
 
 function removeFavoriteById(id) {
-    // Record favorite removal for cognitive analysis
-    if (currentTrialRecord) {
-        if (!currentTrialRecord.favoriteActions) {
-            currentTrialRecord.favoriteActions = [];
+    favorites = favorites.filter(f => f.id !== id);
+    saveFavoritesToStorage(); // Persist to localStorage
+    
+    // Log favorite removal for research
+    if (sessionRecord) {
+        if (!sessionRecord.favoriteActions) {
+            sessionRecord.favoriteActions = [];
         }
-        currentTrialRecord.favoriteActions.push({
+        sessionRecord.favoriteActions.push({
             action: 'remove',
             favoriteId: id,
             timestamp: Date.now()
         });
     }
-    
-    favorites = favorites.filter(f => f.id !== id);
 }
 
 function toggleFavoriteFromWorkflow(idx) {
     const entry = operationsHistory[idx];
     if (!entry || !entry.pattern) return;
+    
     if (isPatternFavorited(entry.pattern)) {
-        // remove the first matching favorite by pattern
         const found = favorites.find(f => patternsEqual(f.pattern, entry.pattern));
         if (found) removeFavoriteById(found.id);
     } else {
         addFavoriteFromEntry(entry);
     }
     renderWorkflow();
-    checkTutorialProgress();
 }
 
-// Helpers header '+' action: favorite the latest step if available
 function addLastToFavorites() {
-    // Prefer the latest workflow step if available, otherwise allow favoriting current workspace
     let entry = null;
     if (operationsHistory && operationsHistory.length > 0) {
-        const idx = operationsHistory.length - 1;
-        entry = operationsHistory[idx];
-    } else if (currentPattern && Array.isArray(currentPattern)) {
-        // create a lightweight entry from current workspace pattern so users can favorite it anytime
+        entry = operationsHistory[operationsHistory.length - 1];
+    } else if (currentPattern) {
         entry = { pattern: JSON.parse(JSON.stringify(currentPattern)), operation: 'workspace' };
     }
+    
     if (!entry || !entry.pattern) {
         showToast('Nothing to favorite.', 'warning');
         return;
@@ -448,33 +321,24 @@ function addLastToFavorites() {
     }
     addFavoriteFromEntry(entry);
     renderFavoritesShelf();
-    showToast('Added latest step to helpers.', 'info');
+    showToast('Added to helpers.', 'info');
 }
 
-function getFavoritePatterns() {
-    // return shallow copy to avoid external mutation
-    return favorites.slice();
-}
-
-// --- END FAVORITES SYSTEM ---
-// --- FAVORITES SHELF RENDERING & CONTROLS ---
 function renderFavoritesShelf() {
     const shelf = document.getElementById('favoritesShelf');
     if (!shelf) return;
     shelf.innerHTML = '';
-    const list = getFavoritePatterns();
-    if (list.length === 0) {
+    
+    if (favorites.length === 0) {
         shelf.innerHTML = '<div class="helpers-empty">Favorite a step to reuse it here.</div>';
         return;
     }
-
-    // Render favorites as minimalist primitive-style buttons
-    list.forEach(fav => {
+    
+    favorites.forEach(fav => {
         const { id, pattern } = fav;
-        // container for favorite with thumbnail and delete control
         const wrapper = document.createElement('div');
         wrapper.className = 'helper-item';
-
+        
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'primitive-btn helper-primitive';
@@ -485,14 +349,7 @@ function renderFavoritesShelf() {
         iconSpan.appendChild(icon);
         btn.appendChild(iconSpan);
         btn.addEventListener('click', () => useFavoritePattern(id, pattern));
-        btn.addEventListener('keydown', (evt) => {
-            if (evt.key === 'Enter' || evt.key === ' ') {
-                evt.preventDefault();
-                useFavoritePattern(id, pattern);
-            }
-        });
-
-        // delete control (always available)
+        
         const del = document.createElement('button');
         del.type = 'button';
         del.className = 'helper-delete';
@@ -504,7 +361,7 @@ function renderFavoritesShelf() {
             renderFavoritesShelf();
             showToast('Removed helper.', 'info');
         });
-
+        
         wrapper.appendChild(btn);
         wrapper.appendChild(del);
         shelf.appendChild(wrapper);
@@ -512,58 +369,57 @@ function renderFavoritesShelf() {
 }
 
 function useFavoritePattern(id, pattern) {
-    // Find the favorite metadata for complete logging
+    let filled = null;
+    const context = pendingBinaryOp ? 'binary' : (pendingUnaryOp ? 'unary' : 'none');
+    
+    // Find the favorite for logging
     const favorite = favorites.find(f => f.id === id);
     
-    // Record favorite usage for cognitive analysis with complete pattern data
-    if (currentTrialRecord) {
-        if (!currentTrialRecord.favoriteActions) {
-            currentTrialRecord.favoriteActions = [];
-        }
-        
-        const context = pendingBinaryOp ? 'binary' : (pendingUnaryOp ? 'unary' : 'none');
-        
-        currentTrialRecord.favoriteActions.push({
-            action: 'use',
-            favoriteId: id,
-            context: context,
-            operation: favorite ? favorite.op : undefined,
-            pattern: JSON.parse(JSON.stringify(pattern)), // Complete 10x10 matrix being reused
-            opFn: favorite && favorite.meta ? favorite.meta.opFn : undefined,
-            operands: favorite && favorite.meta && favorite.meta.operands ? {
-                a: favorite.meta.operands.a ? JSON.parse(JSON.stringify(favorite.meta.operands.a)) : undefined,
-                b: favorite.meta.operands.b ? JSON.parse(JSON.stringify(favorite.meta.operands.b)) : undefined,
-                input: favorite.meta.operands.input ? JSON.parse(JSON.stringify(favorite.meta.operands.input)) : undefined
-            } : undefined,
-            usedAs: context === 'binary' ? (inlinePreview.aPattern ? 'operandB' : 'operandA') : (context === 'unary' ? 'unaryInput' : 'unknown'),
-            timestamp: Date.now()
-        });
-    }
-    
-    let filled = null;
     if (pendingBinaryOp) {
         const { aSource, bSource } = resolveBinaryOperandSources();
         if (!aSource) {
             inlinePreview.aPattern = pattern;
             inlinePreview.aIndex = null;
-            inlinePreview.aFromFavorite = true; // Mark that operand A came from favorites
+            inlinePreview.aFromFavorite = true;
             filled = 'a';
         } else if (!bSource) {
             inlinePreview.bPattern = pattern;
             inlinePreview.bIndex = null;
-            inlinePreview.bFromFavorite = true; // Mark that operand B came from favorites
+            inlinePreview.bFromFavorite = true;
             filled = 'b';
         } else {
             showToast('Both operands are already selected.', 'warning');
             return;
         }
+        
+        // Log helper usage for research
+        if (sessionRecord) {
+            if (!sessionRecord.favoriteActions) {
+                sessionRecord.favoriteActions = [];
+            }
+            sessionRecord.favoriteActions.push({
+                action: 'use',
+                favoriteId: id,
+                context: context,
+                operation: favorite ? favorite.op : undefined,
+                pattern: JSON.parse(JSON.stringify(pattern)),
+                usedAs: filled === 'a' ? 'operandA' : 'operandB',
+                timestamp: Date.now()
+            });
+            
+            // Track helper usage count
+            if (!sessionRecord.helperUsageCount[id]) {
+                sessionRecord.helperUsageCount[id] = 0;
+            }
+            sessionRecord.helperUsageCount[id]++;
+        }
+        
         createBinaryPreview();
         renderWorkflow();
         updateAllButtonStates();
-        // visual pulse on corresponding operand box and toast
         if (filled) {
             pulseOperandBox(filled);
-            showToast(`Filled operand ${filled.toUpperCase()} from Favorites`, 'info', 1600);
+            showToast(`Filled operand ${filled.toUpperCase()} from Helpers`, 'info', 1600);
         }
         renderFavoritesShelf();
     } else if (pendingUnaryOp) {
@@ -575,18 +431,37 @@ function useFavoritePattern(id, pattern) {
         };
         unaryModeJustEntered = false;
         workflowSelections = [];
+        
+        // Log helper usage for research
+        if (sessionRecord) {
+            if (!sessionRecord.favoriteActions) {
+                sessionRecord.favoriteActions = [];
+            }
+            sessionRecord.favoriteActions.push({
+                action: 'use',
+                favoriteId: id,
+                context: context,
+                operation: favorite ? favorite.op : undefined,
+                pattern: JSON.parse(JSON.stringify(pattern)),
+                usedAs: 'unaryInput',
+                timestamp: Date.now()
+            });
+            
+            // Track helper usage count
+            if (!sessionRecord.helperUsageCount[id]) {
+                sessionRecord.helperUsageCount[id] = 0;
+            }
+            sessionRecord.helperUsageCount[id]++;
+        }
+        
         createUnaryPreview();
         renderWorkflow();
         updateAllButtonStates();
         pulseOperandBox('u');
-        showToast('Filled unary input from Favorites', 'info', 1600);
+        showToast('Filled unary input from Helpers', 'info', 1600);
         renderFavoritesShelf();
     } else {
         showToast('⚠️ Please select an operation (binary or unary) before using a helper.', 'warning');
-    }
-    checkTutorialProgress();
-    if (!pendingBinaryOp && !pendingUnaryOp) {
-        renderFavoritesShelf();
     }
 }
 
@@ -596,6 +471,7 @@ function pulseOperandBox(which) {
     else if (which === 'b') el = document.getElementById('binaryOperandB');
     else el = document.getElementById('unaryOperandBox');
     if (!el) return;
+    
     const cls = which === 'a' ? 'operand-pulse-a' : which === 'b' ? 'operand-pulse-b' : 'operand-pulse-u';
     el.classList.remove('operand-pulse-a', 'operand-pulse-b', 'operand-pulse-u');
     void el.offsetWidth;
@@ -603,32 +479,15 @@ function pulseOperandBox(which) {
     setTimeout(() => el.classList.remove(cls), 700);
 }
 
-// --- END FAVORITES SHELF RENDERING & CONTROLS ---
-function createInlinePreviewState() {
-    return {
-        op: null,
-        aIndex: null,
-        bIndex: null,
-        aPattern: null, // temp operand from primitives (not logged)
-        bPattern: null,
-        aFromFavorite: false, // track if operand A came from favorites
-        bFromFavorite: false  // track if operand B came from favorites
-    };
-}
-
+// ============ STATE HELPERS ============
 function resetInlinePreviewState() {
     inlinePreview = createInlinePreviewState();
-}
-
-function createUnaryPreviewState() {
-    return {
-        op: null,
-        source: null // { type: 'primitive'|'history'|'workspace', index: number|null, pattern }
-    };
+    appState.inlinePreview = inlinePreview;
 }
 
 function resetUnaryPreviewState() {
     unaryPreviewState = createUnaryPreviewState();
+    appState.unaryPreviewState = unaryPreviewState;
 }
 
 function setWorkspaceGlow(isActive) {
@@ -643,34 +502,31 @@ function setWorkspaceGlow(isActive) {
 
 function resolveBinaryOperandSources() {
     const sources = [];
-
+    
     if (inlinePreview.aPattern) {
-        sources.push({ slot: 'a', type: 'primitive', pattern: inlinePreview.aPattern, index: null, origin: 'aPattern' });
+        sources.push({ slot: 'a', type: 'primitive', pattern: inlinePreview.aPattern, index: null });
     }
     if (inlinePreview.bPattern) {
-        sources.push({ slot: 'b', type: 'primitive', pattern: inlinePreview.bPattern, index: null, origin: 'bPattern' });
+        sources.push({ slot: 'b', type: 'primitive', pattern: inlinePreview.bPattern, index: null });
     }
     if (typeof inlinePreview.aIndex === 'number' && operationsHistory[inlinePreview.aIndex]) {
-        sources.push({ slot: 'a', type: 'history', pattern: operationsHistory[inlinePreview.aIndex].pattern, index: inlinePreview.aIndex, origin: 'aIndex' });
+        sources.push({ slot: 'a', type: 'history', pattern: operationsHistory[inlinePreview.aIndex].pattern, index: inlinePreview.aIndex });
     }
     if (typeof inlinePreview.bIndex === 'number' && operationsHistory[inlinePreview.bIndex]) {
-        sources.push({ slot: 'b', type: 'history', pattern: operationsHistory[inlinePreview.bIndex].pattern, index: inlinePreview.bIndex, origin: 'bIndex' });
+        sources.push({ slot: 'b', type: 'history', pattern: operationsHistory[inlinePreview.bIndex].pattern, index: inlinePreview.bIndex });
     }
-
-    workflowSelections
-        // 工作流选择按点击顺序记录在数组中，保留顺序即可
-        .slice()
-        .forEach(idx => {
-            if (typeof idx !== 'number' || !operationsHistory[idx]) return;
-            const already = sources.some(src => src.type === 'history' && src.index === idx);
-            if (!already) {
-                sources.push({ slot: null, type: 'history', pattern: operationsHistory[idx].pattern, index: idx, origin: 'selection' });
-            }
-        });
-
+    
+    workflowSelections.slice().forEach(idx => {
+        if (typeof idx !== 'number' || !operationsHistory[idx]) return;
+        const already = sources.some(src => src.type === 'history' && src.index === idx);
+        if (!already) {
+            sources.push({ slot: null, type: 'history', pattern: operationsHistory[idx].pattern, index: idx });
+        }
+    });
+    
     let aSource = sources.find(src => src.slot === 'a');
     let bSource = sources.find(src => src.slot === 'b');
-
+    
     const remaining = sources.filter(src => src !== aSource && src !== bSource);
     if (!aSource && remaining.length) {
         aSource = remaining.shift();
@@ -678,13 +534,12 @@ function resolveBinaryOperandSources() {
     if (!bSource && remaining.length) {
         bSource = remaining.shift();
     }
-
-    // If only one operand is available, always place it in the left slot
+    
     if (!aSource && bSource) {
         aSource = bSource;
         bSource = null;
     }
-
+    
     return { aSource, bSource };
 }
 
@@ -692,197 +547,67 @@ function resolveUnaryOperandSource() {
     if (unaryPreviewState.source) {
         return unaryPreviewState.source;
     }
-    // If unary mode was just entered, don't auto-populate the operand; require explicit user action
     if (unaryModeJustEntered) {
         return null;
     }
-
+    
     if (workflowSelections.length > 0) {
         const idx = workflowSelections[0];
         if (typeof idx === 'number' && operationsHistory[idx]) {
             return {
                 type: 'history',
                 index: idx,
-                pattern: operationsHistory[idx].pattern,
-                origin: 'selection'
+                pattern: operationsHistory[idx].pattern
             };
         }
     }
-
+    
     const lastIdx = operationsHistory.length - 1;
     if (lastIdx >= 0 && operationsHistory[lastIdx]) {
         return {
             type: 'history',
             index: lastIdx,
-            pattern: operationsHistory[lastIdx].pattern,
-            origin: 'implicit-last'
+            pattern: operationsHistory[lastIdx].pattern
         };
     }
-
+    
     if (currentPattern) {
         return {
             type: 'workspace',
             index: null,
-            pattern: currentPattern,
-            origin: 'workspace'
+            pattern: currentPattern
         };
     }
-
+    
     return {
         type: 'workspace',
         index: null,
-        pattern: geomDSL.blank(),
-        origin: 'workspace'
+        pattern: geomDSL.blank()
     };
 }
-// preview removed; operations commit immediately
 
-function startExperiment() {
-    allTrialsData = [];
-    
-    // No randomization option in task page - can be added as URL parameter if needed
-    const urlParams = new URLSearchParams(window.location.search);
-    const shouldRandomize = urlParams.get('randomize') === 'true';
-    
-    testOrder = Array.from({length: getTestCaseCount()}, (_, i) => i);
-    if (shouldRandomize) {
-        testOrder = shuffleArray(testOrder);
-    }
-
-    const totalTrials = testOrder.length;
-    pointsPerCorrect = 1; // 1 point per correct trial
-    totalPoints = 0;
-    updatePointsDisplay();
-    
-    allTrialsData.push({
-        metadata: {
-            randomized: shouldRandomize,
-            order: testOrder,
-            pointsPerTask: pointsPerCorrect,
-            totalTasks: totalTrials
-        }
-    });
-    
-    loadTrial(0);
-}
-
-function loadTrial(index) {
-    // ensure testOrder exists; fall back to sequential indices if not set
-    if (!Array.isArray(testOrder) || testOrder.length === 0) {
-        testOrder = Array.from({ length: getTestCaseCount() }, (_, i) => i);
-    }
-    const total = testOrder.length;
-    // clamp index into valid range
-    const clamped = Math.max(0, Math.min(index, total - 1));
-    // set the current test index so UI and state remain consistent
-    currentTestIndex = clamped;
-    const actualIndex = testOrder[currentTestIndex];
-    targetPattern = testCases[actualIndex].generate();
-    renderPattern(targetPattern, 'targetPattern');
-    // clear workspace and workflow/log for the new trial
-    resetWorkspace();
-    // start with a blank canvas in the workspace by default (do not log blank)
-    currentPattern = geomDSL.blank();
-    renderPattern(currentPattern, 'workspace', {
-        diffMode: pendingBinaryOp,
-        basePattern: previewBackupPattern?.pattern
-    });
-    trialStartTime = Date.now();
-    // create a detailed trial record and push to allTrialsData
-    currentTrialRecord = {
-        trial: currentTestIndex + 1,
-        actualProblemIndex: actualIndex,
-        testName: testCases[actualIndex].name,
-        targetPattern: JSON.parse(JSON.stringify(targetPattern)), // Save target pattern for analysis
-        steps: [], // will be populated by addOperation
-        operations: [], // summary operation strings
-        stepsCount: 0,
-        timeSpent: 0,
-        success: null,
-        submitted: false,
-        pointsEarned: 0,
-        pointsAwarded: 0,
-        startedAt: trialStartTime
-    };
-    allTrialsData.push(currentTrialRecord);
-    
-    updateProgressUI(currentTestIndex);
-
-    if (!isTutorialMode()) {
-        seedAddPreviewWithBlankOperand();
-    }
-}
-
-// Helper: update progress UI elements consistently from one place
-function updateProgressUI(index) {
-    const idx = index;
-    const total = (Array.isArray(testOrder) && testOrder.length > 0) ? testOrder.length : getTestCaseCount();
-    const currentEl = document.getElementById('currentTrial');
-    const totalEl = document.getElementById('totalTrials');
-    const targetEl = document.getElementById('targetNumber');
-    const pctEl = document.getElementById('percentComplete');
-    const fillEl = document.getElementById('progressFill');
-    
-    if (currentEl) {
-        currentEl.textContent = idx + 1;
-    }
-    if (totalEl) {
-        totalEl.textContent = total;
-    }
-    if (targetEl) {
-        targetEl.textContent = idx + 1;
-    }
-    if (pctEl) {
-        const pct = Math.round(((idx + 1) / total) * 100) + '%';
-        pctEl.textContent = pct;
-    }
-    if (fillEl) {
-        const width = ((idx + 1) / total * 100) + '%';
-        fillEl.style.width = width;
-    }
-}
-
-function getTotalTrials() {
-    return (Array.isArray(testOrder) && testOrder.length > 0) ? testOrder.length : getTestCaseCount();
-}
-
-// Helper function to record button clicks for cognitive analysis
-function logButtonClick(buttonType, operationName, context = {}) {
-    if (!currentTrialRecord) return;
-    if (!currentTrialRecord.buttonClickActions) {
-        currentTrialRecord.buttonClickActions = [];
-    }
-    currentTrialRecord.buttonClickActions.push({
-        buttonType,  // 'primitive', 'transform', 'binary'
-        operation: operationName,
-        context,  // { currentMode, hasPreview, etc. }
-        timestamp: Date.now()
-    });
-}
-
+// ============ PRIMITIVES & OPERATIONS ============
 function applyPrimitive(name) {
-    // Log button click for cognitive analysis
+    // Log button click for research
     logButtonClick('primitive', name, {
         pendingBinary: !!pendingBinaryOp,
         pendingUnary: !!pendingUnaryOp
     });
-
-    // Primitives provide operands for pending operations (binary or unary)
+    
     if (!pendingBinaryOp && !pendingUnaryOp) {
         showToast('⚠️ Please select an operation (binary or unary) before choosing a primitive.', 'warning');
         return;
     }
-
+    
     const pat = geomDSL[name]();
-
+    
     if (pendingBinaryOp) {
         const { aSource, bSource } = resolveBinaryOperandSources();
-        // If two operands are already selected, do not replace them.
         if (aSource && bSource) {
             showToast('Two operands are already selected. Reset or confirm the current operation before adding another.', 'warning');
             return;
         }
-
+        
         if (!aSource) {
             inlinePreview.aPattern = pat;
             inlinePreview.aIndex = null;
@@ -892,116 +617,335 @@ function applyPrimitive(name) {
         }
         createBinaryPreview();
     } else if (pendingUnaryOp) {
-        console.debug('applyPrimitive: setting unary operand from primitive', name);
         unaryPreviewState.source = {
             type: 'primitive',
             index: null,
-            pattern: pat,
-            origin: 'primitive'
+            pattern: pat
         };
-        // explicit operand provided
         unaryModeJustEntered = false;
         workflowSelections = [];
         createUnaryPreview();
     }
-
+    
     renderWorkflow();
     updateAllButtonStates();
-    checkTutorialProgress();
 }
 
 function selectUnaryOp(name) {
-    // Log button click for cognitive analysis
+    // Log button click for research
     logButtonClick('transform', name, {
         wasActive: pendingUnaryOp === name,
         previousOp: pendingUnaryOp
     });
-
+    
     const wasActive = pendingUnaryOp === name;
-
+    
     if (pendingBinaryOp) {
         pendingBinaryOp = null;
         previewPattern = null;
         previewBackupPattern = null;
         resetInlinePreviewState();
     }
-
+    
     if (workflowSelections.length > 1) {
         workflowSelections = workflowSelections.slice(0, 1);
     }
-
+    
     if (wasActive) {
         clearUnaryPreview();
         renderWorkflow();
         return;
     }
-
+    
     pendingUnaryOp = name;
     resetUnaryPreviewState();
     unaryPreviewState.op = name;
-    // mark that unary mode was just entered — operand must be provided explicitly
     unaryModeJustEntered = true;
     previewPattern = null;
     previewBackupPattern = null;
     setWorkspaceGlow(false);
-
-    // createUnaryPreview will return no preview until an explicit operand is provided
+    
     createUnaryPreview();
     renderWorkflow();
     updateAllButtonStates();
     updateInlinePreviewPanel();
-    checkTutorialProgress();
 }
 
 function applyTransform(name) {
     selectUnaryOp(name);
 }
 
+function selectBinaryOp(op) {
+    // Log button click for research
+    logButtonClick('binary', op, {
+        wasActive: pendingBinaryOp === op,
+        previousOp: pendingBinaryOp
+    });
+    
+    const prev = pendingBinaryOp;
+    
+    if (prev === op) {
+        clearBinaryPreview();
+    } else {
+        pendingBinaryOp = op;
+        pendingUnaryOp = null;
+        resetUnaryPreviewState();
+        workflowSelections = [];
+        previewPattern = null;
+        previewBackupPattern = null;
+        resetInlinePreviewState();
+    }
+    
+    renderWorkflow();
+    updateAllButtonStates();
+    updateInlinePreviewPanel();
+}
+
 function addOperation(op, metadata = {}) {
-    // default: simple operation entry
     const now = Date.now();
     const lastTimestamp = operationsHistory.length > 0 
         ? operationsHistory[operationsHistory.length - 1].timestamp 
-        : trialStartTime;
+        : Date.now();
     const interval = now - lastTimestamp;
     
     const entry = {
         operation: op,
         pattern: JSON.parse(JSON.stringify(currentPattern)),
         timestamp: now,
-        intervalFromLast: interval  // Time since last operation (ms)
+        intervalFromLast: interval,
+        opFn: metadata.opFn,
+        operands: metadata.operands
     };
     operationsHistory.push(entry);
-    // also append a step record into the current trial record if present
-    if (currentTrialRecord) {
-        const stepEntry = {
-            id: `s${Date.now()}_${Math.floor(Math.random()*1000)}`,
-            operation: op,
-            pattern: JSON.parse(JSON.stringify(currentPattern)),
-            timestamp: now,
-            intervalFromLast: interval,  // Time since last operation (ms)
-            // Save structured operation information for cognitive analysis
-            opFn: metadata.opFn || undefined,
-            operands: metadata.operands ? {
-                a: metadata.operands.a ? JSON.parse(JSON.stringify(metadata.operands.a)) : undefined,
-                b: metadata.operands.b ? JSON.parse(JSON.stringify(metadata.operands.b)) : undefined,
-                input: metadata.operands.input ? JSON.parse(JSON.stringify(metadata.operands.input)) : undefined
-            } : undefined
-        };
-        currentTrialRecord.steps.push(stepEntry);
-        currentTrialRecord.operations.push(op);
-        currentTrialRecord.stepsCount = currentTrialRecord.steps.length;
-    }
     updateOperationsLog();
     updateAllButtonStates();
-    checkTutorialProgress();
 }
 
 function updateOperationsLog() {
     renderWorkflow();
 }
 
-// Lightweight update: only refresh selection highlights without rebuilding DOM
+// ============ WORKFLOW & SELECTION ============
+function renderWorkflow() {
+    const workflow = document.getElementById('operationsLog');
+    if (!workflow) return;
+    workflow.innerHTML = '';
+    
+    if (operationsHistory.length === 0) {
+        workflow.innerHTML = '<span style="color: #9ca3af; font-size: 0.85rem;">Waiting for operations...</span>';
+        return;
+    }
+    
+    operationsHistory.forEach((item, idx) => {
+        const entry = document.createElement('div');
+        entry.className = 'operation-thumb';
+        if (workflowSelections.includes(idx)) entry.classList.add('selected');
+        
+        // Favorite button/badge
+        if (!isPatternFavorited(item.pattern)) {
+            const favBtn = document.createElement('button');
+            favBtn.className = 'favorite-btn favorite-add-btn';
+            favBtn.title = 'Add to favorites';
+            favBtn.textContent = '+';
+            favBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleFavoriteFromWorkflow(idx);
+            });
+            entry.appendChild(favBtn);
+        } else {
+            const badge = document.createElement('div');
+            badge.className = 'favorite-badge';
+            badge.title = 'Favorited';
+            badge.textContent = '★';
+            entry.appendChild(badge);
+        }
+        
+        const opText = item.operation || '';
+        entry.onclick = () => onWorkflowClick(idx);
+        
+        const binaryMatch = opText.match(/^(add|subtract|union)\((.*)\)$/);
+        const unaryOps = new Set(['invert', 'reflect_horizontal', 'reflect_vertical', 'reflect_diag']);
+        const isUnary = item.opFn && unaryOps.has(item.opFn);
+        
+        if (binaryMatch) {
+            const fn = binaryMatch[1];
+            const svgWrap = document.createElement('div');
+            svgWrap.className = 'operand-box program-result';
+            const resultSvg = renderThumbnail(item.pattern, 4);
+            svgWrap.appendChild(resultSvg);
+            
+            const expr = document.createElement('div');
+            expr.className = 'program-expr';
+            const opTok = document.createElement('span');
+            opTok.className = 'program-expr-op';
+            opTok.textContent = getOperationAbbreviation(fn) + '(';
+            expr.appendChild(opTok);
+            
+            const aTok = document.createElement('div');
+            aTok.className = 'operand-box program-operand';
+            const aSvg = renderThumbnail(item.operands?.a || item.pattern, 3.5);
+            aTok.appendChild(aSvg);
+            expr.appendChild(aTok);
+            
+            const comma = document.createElement('span');
+            comma.className = 'program-expr-comma';
+            comma.textContent = ', ';
+            expr.appendChild(comma);
+            
+            const bTok = document.createElement('div');
+            bTok.className = 'operand-box program-operand';
+            const bSvg = renderThumbnail(item.operands?.b || item.pattern, 3.5);
+            bTok.appendChild(bSvg);
+            expr.appendChild(bTok);
+            
+            const closeTok = document.createElement('span');
+            closeTok.className = 'program-expr-close';
+            closeTok.textContent = ')';
+            expr.appendChild(closeTok);
+            
+            const num = document.createElement('div');
+            num.className = 'line-number';
+            num.textContent = (idx + 1).toString();
+            entry.appendChild(num);
+            entry.appendChild(svgWrap);
+            entry.appendChild(expr);
+        } else if (isUnary) {
+            const svgWrap = document.createElement('div');
+            svgWrap.className = 'operand-box program-result';
+            const resultSvg = renderThumbnail(item.pattern, 4);
+            svgWrap.appendChild(resultSvg);
+            
+            const expr = document.createElement('div');
+            expr.className = 'program-expr';
+            const opTok = document.createElement('span');
+            opTok.className = 'program-expr-op';
+            const unaryName = item.opFn || opText.replace(/\(.*$/, '');
+            opTok.textContent = getOperationAbbreviation(unaryName) + '(';
+            expr.appendChild(opTok);
+            
+            const operandTok = document.createElement('div');
+            operandTok.className = 'operand-box program-operand';
+            const operandPattern = item.operands?.input || item.pattern;
+            const operandSvg = renderThumbnail(operandPattern, 3.5);
+            operandTok.appendChild(operandSvg);
+            expr.appendChild(operandTok);
+            
+            const closeTok = document.createElement('span');
+            closeTok.className = 'program-expr-close';
+            closeTok.textContent = ')';
+            expr.appendChild(closeTok);
+            
+            const num = document.createElement('div');
+            num.className = 'line-number';
+            num.textContent = (idx + 1).toString();
+            entry.appendChild(num);
+            entry.appendChild(svgWrap);
+            entry.appendChild(expr);
+        } else {
+            const svgWrap = document.createElement('div');
+            svgWrap.className = 'operand-box program-result';
+            const thumbSvg = renderThumbnail(item.pattern, 4);
+            svgWrap.appendChild(thumbSvg);
+            
+            const label = document.createElement('div');
+            label.className = 'thumb-label';
+            label.textContent = formatOperationText(item.operation);
+            
+            const num = document.createElement('div');
+            num.className = 'line-number';
+            num.textContent = (idx + 1).toString();
+            entry.appendChild(num);
+            entry.appendChild(svgWrap);
+            entry.appendChild(label);
+        }
+        
+        const selPos = workflowSelections.indexOf(idx);
+        if (selPos !== -1) {
+            const badge = document.createElement('div');
+            badge.className = 'selection-badge';
+            badge.textContent = (selPos + 1).toString();
+            entry.appendChild(badge);
+        }
+        
+        workflow.appendChild(entry);
+    });
+    
+    updateAllButtonStates();
+    updateInlinePreviewPanel();
+    renderFavoritesShelf();
+}
+
+function onWorkflowClick(idx) {
+    if (pendingBinaryOp) {
+        toggleWorkflowSelection(idx);
+        createBinaryPreview();
+        updateAllButtonStates();
+    } else if (pendingUnaryOp) {
+        if (!operationsHistory[idx] || !operationsHistory[idx].pattern) {
+            return;
+        }
+        workflowSelections = [idx];
+        unaryPreviewState.source = {
+            type: 'history',
+            index: idx,
+            pattern: JSON.parse(JSON.stringify(operationsHistory[idx].pattern))
+        };
+        unaryModeJustEntered = false;
+        updateWorkflowSelectionHighlight();
+        createUnaryPreview();
+    } else {
+        if (operationsHistory[idx] && operationsHistory[idx].pattern) {
+            const isAlreadySelected = workflowSelections.length === 1 && workflowSelections[0] === idx;
+            
+            if (isAlreadySelected) {
+                workflowSelections = [];
+                currentPattern = null;
+                const workspace = document.getElementById('workspace');
+                if (workspace) workspace.innerHTML = '';
+                renderWorkflow();
+            } else {
+                currentPattern = JSON.parse(JSON.stringify(operationsHistory[idx].pattern));
+                renderPattern(currentPattern, 'workspace');
+                workflowSelections = [idx];
+                renderWorkflow();
+            }
+        }
+    }
+}
+
+function toggleWorkflowSelection(idx) {
+    const pos = workflowSelections.indexOf(idx);
+    const isCurrentlySelected = pos !== -1;
+    
+    if (isCurrentlySelected && (pendingBinaryOp || pendingUnaryOp)) {
+        showToast('Cannot deselect operand. Use ⟲ Reset to cancel the operation.', 'warning');
+        return;
+    }
+    
+    if (!isCurrentlySelected && pendingBinaryOp && workflowSelections.length >= 2) {
+        showToast('Two operands are already selected. Use ⟲ Reset to cancel the operation.', 'warning');
+        return;
+    }
+    
+    if (pos === -1) {
+        if (pendingUnaryOp) {
+            workflowSelections = [];
+        }
+        if (workflowSelections.length >= 2) {
+            const removed = workflowSelections.shift();
+            if (inlinePreview.aIndex === removed) inlinePreview.aIndex = null;
+            if (inlinePreview.bIndex === removed) inlinePreview.bIndex = null;
+        }
+        workflowSelections.push(idx);
+    } else {
+        workflowSelections.splice(pos, 1);
+        if (inlinePreview.aIndex === idx) inlinePreview.aIndex = null;
+        if (inlinePreview.bIndex === idx) inlinePreview.bIndex = null;
+    }
+    renderWorkflow();
+    updateInlinePreviewPanel();
+}
+
 function updateWorkflowSelectionHighlight() {
     const workflow = document.getElementById('operationsLog');
     if (!workflow) return;
@@ -1014,7 +958,6 @@ function updateWorkflowSelectionHighlight() {
             entry.classList.remove('selected');
         }
         
-        // Update selection badges
         const existingBadge = entry.querySelector('.selection-badge');
         if (existingBadge) {
             existingBadge.remove();
@@ -1032,487 +975,7 @@ function updateWorkflowSelectionHighlight() {
     updateInlinePreviewPanel();
 }
 
-function renderWorkflow() {
-    const workflow = document.getElementById('operationsLog');
-    if (!workflow) return;
-    workflow.innerHTML = '';
-    if (operationsHistory.length === 0) {
-        workflow.innerHTML = '<span style="color: #9ca3af; font-size: 0.85rem;">Waiting for operations...</span>';
-        return;
-    }
-
-    operationsHistory.forEach((item, idx) => {
-        const entry = document.createElement('div');
-        entry.className = 'operation-thumb';
-        if (workflowSelections.includes(idx)) entry.classList.add('selected');
-
-        // --- FAVORITE UI: add-plus button (more visible) and favorited badge ---
-        if (!isPatternFavorited(item.pattern)) {
-            const favBtn = document.createElement('button');
-            favBtn.className = 'favorite-btn favorite-add-btn';
-            favBtn.title = 'Add to favorites';
-            favBtn.textContent = '+';
-            favBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                toggleFavoriteFromWorkflow(idx);
-                checkTutorialProgress();
-            });
-            entry.appendChild(favBtn);
-        } else {
-            const badge = document.createElement('div');
-            badge.className = 'favorite-badge';
-            badge.title = 'Favorited';
-            badge.textContent = '★';
-            entry.appendChild(badge);
-        }
-        // --- END FAVORITE UI ---
-
-        // No automatic highlighting - only show selected items in blue
-        const opText = item.operation || '';
-
-        entry.onclick = () => onWorkflowClick(idx);
-
-        // If operation is in function format like 'add(selected)' or 'add(W1,W2)'
-        const binaryMatch = opText.match(/^(add|subtract|union)\((.*)\)$/);
-        const unaryOps = new Set(['invert', 'reflect_horizontal', 'reflect_vertical', 'reflect_diag']);
-        const isUnary = item.opFn && unaryOps.has(item.opFn);
-        if (binaryMatch) {
-            // 表达式渲染：结果缩略图 + 灰底表达式 token（op( A , B )）
-            const fn = binaryMatch[1];
-            const svgWrap = document.createElement('div');
-            // Use preview-style operand box for result thumbnail
-            svgWrap.className = 'operand-box program-result';
-            const resultSvg = renderThumbnail(item.pattern, 4);
-            svgWrap.appendChild(resultSvg);
-            // Click on SVG should trigger the same selection logic as clicking the row
-
-            // 表达式 token 区
-            const expr = document.createElement('div');
-            expr.className = 'program-expr';
-            const opTok = document.createElement('span');
-            opTok.className = 'program-expr-op';
-            opTok.textContent = getOperationAbbreviation(fn) + '(';
-            expr.appendChild(opTok);
-            // A operand thumb (reuse preview operand-box style)
-            const aTok = document.createElement('div');
-            aTok.className = 'operand-box program-operand';
-            const aSvg = renderThumbnail(item.operands?.a || item.pattern, 3.5);
-            aTok.appendChild(aSvg);
-            expr.appendChild(aTok);
-            const comma = document.createElement('span');
-            comma.className = 'program-expr-comma';
-            comma.textContent = ', ';
-            expr.appendChild(comma);
-            // B operand thumb
-            const bTok = document.createElement('div');
-            bTok.className = 'operand-box program-operand';
-            const bSvg = renderThumbnail(item.operands?.b || item.pattern, 3.5);
-            bTok.appendChild(bSvg);
-            expr.appendChild(bTok);
-            const closeTok = document.createElement('span');
-            closeTok.className = 'program-expr-close';
-            closeTok.textContent = ')';
-            expr.appendChild(closeTok);
-
-            // prepend line number
-            const num = document.createElement('div');
-            num.className = 'line-number';
-            num.textContent = (idx + 1).toString();
-            entry.appendChild(num);
-            entry.appendChild(svgWrap);
-            entry.appendChild(expr);
-        } else if (isUnary) {
-            const svgWrap = document.createElement('div');
-            svgWrap.className = 'operand-box program-result';
-            const resultSvg = renderThumbnail(item.pattern, 4);
-            svgWrap.appendChild(resultSvg);
-            // Click on SVG should trigger the same selection logic as clicking the row
-
-            const expr = document.createElement('div');
-            expr.className = 'program-expr';
-            const opTok = document.createElement('span');
-            opTok.className = 'program-expr-op';
-            const unaryName = item.opFn || opText.replace(/\(.*$/, '');
-            opTok.textContent = getOperationAbbreviation(unaryName) + '(';
-            expr.appendChild(opTok);
-
-            const operandTok = document.createElement('div');
-            operandTok.className = 'operand-box program-operand';
-            const operandPattern = item.operands?.input || item.pattern;
-            const operandSvg = renderThumbnail(operandPattern, 3.5);
-            operandTok.appendChild(operandSvg);
-            expr.appendChild(operandTok);
-
-            const labelInside = opText.match(/^[^\(]+\((.*)\)$/);
-            const labelText = labelInside ? labelInside[1] : '';
-            if (labelText && labelText.trim().length > 0 && labelText !== '•') {
-                const labelSpan = document.createElement('span');
-                labelSpan.className = 'program-expr-label';
-                labelSpan.textContent = labelText;
-                expr.appendChild(labelSpan);
-            }
-
-            const closeTok = document.createElement('span');
-            closeTok.className = 'program-expr-close';
-            closeTok.textContent = ')';
-            expr.appendChild(closeTok);
-
-            const num = document.createElement('div');
-            num.className = 'line-number';
-            num.textContent = (idx + 1).toString();
-            entry.appendChild(num);
-            entry.appendChild(svgWrap);
-            entry.appendChild(expr);
-        } else {
-            const svgWrap = document.createElement('div');
-            svgWrap.className = 'operand-box program-result';
-            // Render primitive result using the same preview-style box
-            const thumbSvg = renderThumbnail(item.pattern, 4);
-            svgWrap.appendChild(thumbSvg);
-            // Click on SVG should trigger the same selection logic as clicking the row
-
-            const label = document.createElement('div');
-            label.className = 'thumb-label';
-            label.textContent = formatOperationText(item.operation);
-
-            // prepend line number badge
-            const num = document.createElement('div');
-            num.className = 'line-number';
-            num.textContent = (idx + 1).toString();
-            entry.appendChild(num);
-
-            entry.appendChild(svgWrap);
-            entry.appendChild(label);
-        }
-
-        // If this entry is selected, show selection badge with its order (1 or 2)
-        const selPos = workflowSelections.indexOf(idx);
-        if (selPos !== -1) {
-            const badge = document.createElement('div');
-            badge.className = 'selection-badge';
-            badge.textContent = (selPos + 1).toString();
-            entry.appendChild(badge);
-        }
-
-        workflow.appendChild(entry);
-    });
-    // ensure button states are synchronized with current workflow
-    updateAllButtonStates();
-    // also refresh inline preview UI state
-    updateInlinePreviewPanel();
-    renderFavoritesShelf();
-    checkTutorialProgress();
-}
-
-function onWorkflowClick(idx) {
-    // Record workflow interaction for cognitive navigation analysis
-    if (currentTrialRecord) {
-        if (!currentTrialRecord.workflowActions) {
-            currentTrialRecord.workflowActions = [];
-        }
-        currentTrialRecord.workflowActions.push({
-            action: 'click',
-            index: idx,
-            mode: pendingBinaryOp ? 'binary' : (pendingUnaryOp ? 'unary' : 'normal'),
-            timestamp: Date.now()
-        });
-    }
-    
-    // In binary mode: toggle selection for operands
-    // In normal mode: load pattern and clear old selections
-    
-    if (pendingBinaryOp) {
-        // Binary mode: select this item as operand
-        toggleWorkflowSelection(idx);
-        
-        // Recompute preview using any combination of operands
-        createBinaryPreview();
-        
-        updateAllButtonStates();
-    } else if (pendingUnaryOp) {
-        if (!operationsHistory[idx] || !operationsHistory[idx].pattern) {
-            return;
-        }
-        console.debug('onWorkflowClick: setting unary operand from workflow index', idx);
-        workflowSelections = [idx];
-        unaryPreviewState.source = {
-            type: 'history',
-            index: idx,
-            pattern: JSON.parse(JSON.stringify(operationsHistory[idx].pattern)),
-            origin: 'selection'
-        };
-        // explicit operand provided
-        unaryModeJustEntered = false;
-        // Optimized: only update selection state, don't rebuild entire workflow
-        updateWorkflowSelectionHighlight();
-        createUnaryPreview();
-        // updateAllButtonStates already called in renderWorkflow via createUnaryPreview
-    } else {
-        // Normal mode: toggle selection - click to select, click again to deselect
-        if (operationsHistory[idx] && operationsHistory[idx].pattern) {
-            // Check if this item is already selected
-            const isAlreadySelected = workflowSelections.length === 1 && workflowSelections[0] === idx;
-            
-            if (isAlreadySelected) {
-                // Deselect: clear selection and clear YOUR PATTERN display
-                workflowSelections = [];
-                currentPattern = null;
-                // Clear the workspace canvas
-                const workspace = document.getElementById('workspace');
-                if (workspace) workspace.innerHTML = '';
-                renderWorkflow();
-            } else {
-                // Select: load pattern and mark as selected
-                currentPattern = JSON.parse(JSON.stringify(operationsHistory[idx].pattern));
-                renderPattern(currentPattern, 'workspace');
-                
-                // Mark this item as selected (for transform labeling)
-                workflowSelections = [idx];
-                renderWorkflow();
-            }
-        }
-    }
-}
-
-function toggleWorkflowSelection(idx) {
-    const pos = workflowSelections.indexOf(idx);
-    const isCurrentlySelected = pos !== -1;
-    
-    // Check if this action will be blocked before recording
-    if (isCurrentlySelected && (pendingBinaryOp || pendingUnaryOp)) {
-        // In operation mode, don't allow deselecting operands - use Reset instead
-        showToast('Cannot deselect operand. Use ⟲ Reset to cancel the operation.', 'warning');
-        // Record the attempted (but blocked) deselect action
-        if (currentTrialRecord) {
-            if (!currentTrialRecord.workflowActions) {
-                currentTrialRecord.workflowActions = [];
-            }
-            currentTrialRecord.workflowActions.push({
-                action: 'deselect_blocked',
-                index: idx,
-                mode: pendingBinaryOp ? 'binary' : 'unary',
-                currentSelections: [...workflowSelections],
-                timestamp: Date.now()
-            });
-        }
-        return;
-    }
-    
-    // Check if selection will be blocked (too many operands)
-    if (!isCurrentlySelected && pendingBinaryOp && workflowSelections.length >= 2) {
-        showToast('Two operands are already selected. Use ⟲ Reset to cancel the operation.', 'warning');
-        // Record the attempted (but blocked) selection
-        if (currentTrialRecord) {
-            if (!currentTrialRecord.workflowActions) {
-                currentTrialRecord.workflowActions = [];
-            }
-            currentTrialRecord.workflowActions.push({
-                action: 'select_blocked',
-                index: idx,
-                reason: 'max_operands',
-                currentSelections: [...workflowSelections],
-                timestamp: Date.now()
-            });
-        }
-        return;
-    }
-    
-    // Record the actual (successful) selection/deselection
-    if (currentTrialRecord) {
-        if (!currentTrialRecord.workflowActions) {
-            currentTrialRecord.workflowActions = [];
-        }
-        currentTrialRecord.workflowActions.push({
-            action: isCurrentlySelected ? 'deselect' : 'select',
-            index: idx,
-            currentSelections: [...workflowSelections],
-            timestamp: Date.now()
-        });
-    }
-    
-    if (pos === -1) {
-        // allow up to 2 selections, preserve click order
-        if (pendingUnaryOp) {
-            workflowSelections = [];
-        }
-        if (workflowSelections.length >= 2) {
-            // non-binary fallback behavior: shift oldest selection
-            const removed = workflowSelections.shift();
-            if (inlinePreview.aIndex === removed) inlinePreview.aIndex = null;
-            if (inlinePreview.bIndex === removed) inlinePreview.bIndex = null;
-        }
-        workflowSelections.push(idx);
-    } else {
-        // Normal mode: remove existing selection
-        workflowSelections.splice(pos, 1);
-        if (inlinePreview.aIndex === idx) inlinePreview.aIndex = null;
-        if (inlinePreview.bIndex === idx) inlinePreview.bIndex = null;
-    }
-    renderWorkflow();
-    updateInlinePreviewPanel();
-}
-
-// Called when user clicks a binary op button in the bottom bar
-function selectBinaryOp(op) {
-    // Log button click for cognitive analysis
-    logButtonClick('binary', op, {
-        wasActive: pendingBinaryOp === op,
-        previousOp: pendingBinaryOp
-    });
-
-    const prev = pendingBinaryOp;
-    
-    // Toggle: clicking the same button again cancels binary mode
-    if (prev === op) {
-        clearBinaryPreview();
-    } else {
-        // Entering binary mode or switching to different operation
-        pendingBinaryOp = op;
-        pendingUnaryOp = null;
-        resetUnaryPreviewState();
-        
-        // Clear selections when entering or switching
-        workflowSelections = [];
-        
-        // Only clear preview if there was one, but don't reset pendingBinaryOp
-        previewPattern = null;
-        previewBackupPattern = null;
-        resetInlinePreviewState();
-    }
-    
-    renderWorkflow();
-    updateAllButtonStates();
-    updateInlinePreviewPanel();
-    checkTutorialProgress();
-}
-
-// Unified button state management for intuitive interaction
-function updateAllButtonStates() {
-    const isBinaryMode = (pendingBinaryOp !== null);
-    const isUnaryMode = (pendingUnaryOp !== null);
-    
-    // === PRIMITIVE BUTTONS ===
-    // Enabled when an operation (binary or unary) is pending
-    const prims = document.querySelectorAll('.primitive-btn');
-    prims.forEach(b => {
-        if (isBinaryMode || isUnaryMode) {
-            b.classList.remove('disabled');
-            b.classList.add('enabled');
-            b.title = b.getAttribute('data-original-title') || 'Create a pattern to use in the current operation';
-        } else {
-            // Normal mode: primitives are disabled
-            b.classList.add('disabled');
-            b.classList.remove('enabled');
-            b.title = 'Select an operation first to use primitives';
-        }
-    });
-    
-    // === UNARY BUTTONS ===
-    const unaryButtons = document.querySelectorAll('.unary-btn');
-    unaryButtons.forEach(btn => {
-        const op = btn.getAttribute('data-op');
-        // Allow switching between operations - don't disable unary buttons when in binary mode
-        btn.classList.remove('disabled');
-        btn.classList.add('enabled');
-        btn.title = btn.getAttribute('data-original-title') || '';
-
-        if (pendingUnaryOp === op) {
-            btn.classList.add('selected');
-        } else {
-            btn.classList.remove('selected');
-        }
-    });
-    
-    // === BINARY BUTTONS ===
-    // Always enabled - user can decide to do binary operations at any time
-    const bins = ['add','subtract','union'];
-    bins.forEach(name => {
-        const btn = document.getElementById('bin-' + name);
-        if (!btn) return;
-        
-        // Visual state: selected or not
-        if (pendingBinaryOp === name) {
-            btn.classList.add('selected');
-            btn.classList.remove('disabled');
-            btn.classList.add('enabled');
-            btn.title = btn.getAttribute('data-original-title') || '';
-        } else {
-            btn.classList.remove('selected');
-            // Allow switching between operations - don't disable binary buttons when in unary mode
-            btn.classList.remove('disabled');
-            btn.classList.add('enabled');
-            btn.title = btn.getAttribute('data-original-title') || '';
-        }
-    });
-    
-    // === SUBMIT BUTTON ===
-    // Disable submit button when there's an unconfirmed operation
-    const submitBtn = document.querySelector('.program-submit');
-    if (submitBtn) {
-        const hasUnconfirmedOperation = (isBinaryMode || isUnaryMode) && previewPattern !== null;
-        if (hasUnconfirmedOperation) {
-            submitBtn.disabled = true;
-            submitBtn.title = 'Please Confirm or Reset your operation before submitting';
-            submitBtn.style.opacity = '0.5';
-            submitBtn.style.cursor = 'not-allowed';
-        } else {
-            submitBtn.disabled = false;
-            submitBtn.title = 'Submit your answer and proceed to next pattern';
-            submitBtn.style.opacity = '1';
-            submitBtn.style.cursor = 'pointer';
-        }
-    }
-    
-    // === STATUS BAR & HINT TEXT ===
-}
-
-function applySelectedBinary() {
-    // Confirm handler should route here: if a previewPattern exists, commit it
-    if (!previewPattern) {
-        showToast('No preview available to confirm', 'warning');
-        return;
-    }
-    // commit preview to history
-    currentPattern = JSON.parse(JSON.stringify(previewPattern));
-    renderPattern(currentPattern, 'workspace');
-
-    function operandLabel(opnd) {
-        if (!opnd) return '•';
-        const found = operationsHistory.findIndex(e => JSON.stringify(e.pattern) === JSON.stringify(opnd));
-        if (found >= 0) return `${found+1}`;
-        return '•';
-    }
-
-    // determine operands again for labeling (they were stored on preview)
-    const a = previewBackupPattern && previewBackupPattern.operands ? previewBackupPattern.operands.a : null;
-    const b = previewBackupPattern && previewBackupPattern.operands ? previewBackupPattern.operands.b : null;
-    const labelA = operandLabel(a);
-    const labelB = operandLabel(b);
-
-    // 在 Program 中希望以“缩略图表达式”显示，因此 operation 文本保留，同时在 entry 上放置结构化字段
-    const opText = `${pendingBinaryOp}(${labelA}, ${labelB})`;
-    addOperation(opText, {
-        opFn: pendingBinaryOp,
-        operands: { a: a, b: b }
-    });
-    const last = operationsHistory[operationsHistory.length - 1];
-    last.opFn = pendingBinaryOp;
-    last.operands = { a: a, b: b };
-    
-    // Mark if any operand came from favorites
-    if (inlinePreview.aFromFavorite || inlinePreview.bFromFavorite) {
-        last.helperUsed = true;
-    }
-    
-    // Auto-select the newly added operation (last line)
-    workflowSelections = [operationsHistory.length - 1];
-
-    // clear preview state and exit binary mode
-    clearBinaryPreview();
-    renderWorkflow();
-    checkTutorialProgress();
-}
-
+// ============ PREVIEW FUNCTIONS ============
 function createBinaryPreview() {
     if (!pendingBinaryOp) {
         previewPattern = null;
@@ -1521,12 +984,11 @@ function createBinaryPreview() {
         updateInlinePreviewPanel();
         return;
     }
-
+    
     const { aSource, bSource } = resolveBinaryOperandSources();
     const aPattern = aSource && aSource.pattern;
     const bPattern = bSource && bSource.pattern;
-
-    // If we have first operand but not second, show the first operand in YOUR PATTERN
+    
     if (aPattern && !bPattern) {
         previewPattern = null;
         previewBackupPattern = null;
@@ -1536,8 +998,7 @@ function createBinaryPreview() {
         updateInlinePreviewPanel();
         return;
     }
-
-    // If we don't have any operands, restore to last committed pattern
+    
     if (!aPattern || !bPattern) {
         previewPattern = null;
         previewBackupPattern = null;
@@ -1548,14 +1009,14 @@ function createBinaryPreview() {
         updateInlinePreviewPanel();
         return;
     }
-
+    
     const func = transDSL[pendingBinaryOp];
     if (!func) {
         showToast('Unknown binary operation', 'error');
         setWorkspaceGlow(false);
         return;
     }
-
+    
     const base = (operationsHistory.length > 0) ? operationsHistory[operationsHistory.length - 1].pattern : geomDSL.blank();
     previewBackupPattern = {
         pattern: JSON.parse(JSON.stringify(base)),
@@ -1564,16 +1025,16 @@ function createBinaryPreview() {
             b: JSON.parse(JSON.stringify(bPattern))
         }
     };
-
+    
     inlinePreview.op = pendingBinaryOp;
     inlinePreview.aIndex = (aSource && aSource.type === 'history') ? aSource.index : null;
     inlinePreview.bIndex = (bSource && bSource.type === 'history') ? bSource.index : null;
-
+    
     previewPattern = func(JSON.parse(JSON.stringify(aPattern)), JSON.parse(JSON.stringify(bPattern)));
     currentPattern = JSON.parse(JSON.stringify(previewPattern));
     renderPattern(currentPattern, 'workspace');
     setWorkspaceGlow(true);
-
+    
     updateInlinePreviewPanel();
 }
 
@@ -1586,7 +1047,7 @@ function createUnaryPreview() {
         updateInlinePreviewPanel();
         return;
     }
-
+    
     const source = resolveUnaryOperandSource();
     if (!source || !source.pattern) {
         previewPattern = null;
@@ -1600,39 +1061,32 @@ function createUnaryPreview() {
         updateInlinePreviewPanel();
         return;
     }
-
+    
     const func = transDSL[pendingUnaryOp];
     if (typeof func !== 'function') {
         showToast('Unknown unary operation', 'error');
         setWorkspaceGlow(false);
         return;
     }
-
+    
     const base = (operationsHistory.length > 0)
         ? operationsHistory[operationsHistory.length - 1].pattern
         : (currentPattern || geomDSL.blank());
-
+    
     previewBackupPattern = {
         pattern: JSON.parse(JSON.stringify(base)),
         operands: {
             input: JSON.parse(JSON.stringify(source.pattern))
-        },
-        mode: 'unary',
-        operandSource: {
-            type: source.type,
-            index: source.index ?? null,
-            origin: source.origin || null
         }
     };
-
+    
     unaryPreviewState.op = pendingUnaryOp;
     unaryPreviewState.source = {
         type: source.type,
         index: source.index ?? null,
-        pattern: JSON.parse(JSON.stringify(source.pattern)),
-        origin: source.origin || null
+        pattern: JSON.parse(JSON.stringify(source.pattern))
     };
-
+    
     previewPattern = func(JSON.parse(JSON.stringify(source.pattern)));
     currentPattern = JSON.parse(JSON.stringify(previewPattern));
     renderPattern(currentPattern, 'workspace');
@@ -1647,12 +1101,10 @@ function clearBinaryPreview() {
     resetUnaryPreviewState();
     setWorkspaceGlow(false);
     
-    // restore workspace to last committed pattern if available
     const base = (operationsHistory.length > 0) ? operationsHistory[operationsHistory.length - 1].pattern : geomDSL.blank();
     currentPattern = JSON.parse(JSON.stringify(base));
     renderPattern(currentPattern, 'workspace');
     
-    // Clear pending operation (keep selections as set by caller)
     pendingBinaryOp = null;
     pendingUnaryOp = null;
     
@@ -1665,17 +1117,60 @@ function clearUnaryPreview() {
     previewBackupPattern = null;
     resetUnaryPreviewState();
     setWorkspaceGlow(false);
-
+    
     const base = (operationsHistory.length > 0)
         ? operationsHistory[operationsHistory.length - 1].pattern
         : geomDSL.blank();
     currentPattern = JSON.parse(JSON.stringify(base));
     renderPattern(currentPattern, 'workspace');
-
+    
     pendingUnaryOp = null;
-
+    
     updateAllButtonStates();
     updateInlinePreviewPanel();
+}
+
+function applySelectedBinary() {
+    if (!previewPattern) {
+        showToast('No preview available to confirm', 'warning');
+        return;
+    }
+    
+    currentPattern = JSON.parse(JSON.stringify(previewPattern));
+    renderPattern(currentPattern, 'workspace');
+    
+    function operandLabel(opnd) {
+        if (!opnd) return '•';
+        const found = operationsHistory.findIndex(e => JSON.stringify(e.pattern) === JSON.stringify(opnd));
+        if (found >= 0) return `${found+1}`;
+        return '•';
+    }
+    
+    const a = previewBackupPattern && previewBackupPattern.operands ? previewBackupPattern.operands.a : null;
+    const b = previewBackupPattern && previewBackupPattern.operands ? previewBackupPattern.operands.b : null;
+    const labelA = operandLabel(a);
+    const labelB = operandLabel(b);
+    
+    const opText = `${pendingBinaryOp}(${labelA}, ${labelB})`;
+    addOperation(opText, {
+        opFn: pendingBinaryOp,
+        operands: { a: a, b: b }
+    });
+    
+    const last = operationsHistory[operationsHistory.length - 1];
+    last.opFn = pendingBinaryOp;
+    last.operands = { a: a, b: b };
+    
+    if (inlinePreview.aFromFavorite || inlinePreview.bFromFavorite) {
+        last.helperUsed = true;
+    }
+    
+    // Log operation completion for research
+    logOperationComplete(pendingBinaryOp, { a: a, b: b }, currentPattern);
+    
+    workflowSelections = [operationsHistory.length - 1];
+    clearBinaryPreview();
+    renderWorkflow();
 }
 
 function applySelectedUnary() {
@@ -1683,67 +1178,42 @@ function applySelectedUnary() {
         showToast('No preview available to confirm', 'warning');
         return;
     }
-
+    
     const sourceSnapshot = previewBackupPattern && previewBackupPattern.operands
         ? previewBackupPattern.operands.input
         : (unaryPreviewState.source && unaryPreviewState.source.pattern);
-    const operandSourceMeta = previewBackupPattern && previewBackupPattern.operandSource
-        ? previewBackupPattern.operandSource
-        : (unaryPreviewState.source
-            ? {
-                type: unaryPreviewState.source.type,
-                index: unaryPreviewState.source.index ?? null,
-                origin: unaryPreviewState.source.origin || null
-            }
-            : null);
-
+    
     currentPattern = JSON.parse(JSON.stringify(previewPattern));
     renderPattern(currentPattern, 'workspace');
-
+    
     let operandLabel = '•';
-    if (operandSourceMeta && typeof operandSourceMeta.index === 'number') {
-        operandLabel = `${operandSourceMeta.index + 1}`;
+    if (unaryPreviewState.source && typeof unaryPreviewState.source.index === 'number') {
+        operandLabel = `${unaryPreviewState.source.index + 1}`;
     }
-
-    const operandCopy = (sourceSnapshot !== undefined && sourceSnapshot !== null)
+    
+    const operandCopy = sourceSnapshot !== undefined && sourceSnapshot !== null
         ? JSON.parse(JSON.stringify(sourceSnapshot))
         : null;
-
+    
     const opText = `${pendingUnaryOp}(${operandLabel})`;
     addOperation(opText, {
         opFn: pendingUnaryOp,
         operands: { input: operandCopy }
     });
+    
     const last = operationsHistory[operationsHistory.length - 1];
     last.opFn = pendingUnaryOp;
     last.operands = { input: operandCopy };
-    last.operandSource = operandSourceMeta;
     
-    // Mark if operand came from favorites
-    if (operandSourceMeta && operandSourceMeta.type === 'favorite') {
-        last.helperUsed = true;
-    }
-
-    // Auto-select the newly added operation (last line)
+    // Log operation completion for research
+    logOperationComplete(pendingUnaryOp, { input: operandCopy }, currentPattern);
+    
     workflowSelections = [operationsHistory.length - 1];
     clearUnaryPreview();
     renderWorkflow();
-    checkTutorialProgress();
 }
 
 function confirmPendingOperation() {
-    // Record preview confirmation for cognitive planning analysis
-    if (currentTrialRecord && (pendingBinaryOp || pendingUnaryOp)) {
-        if (!currentTrialRecord.previewActions) {
-            currentTrialRecord.previewActions = [];
-        }
-        currentTrialRecord.previewActions.push({
-            action: 'confirm',
-            operationType: pendingBinaryOp ? pendingBinaryOp : pendingUnaryOp,
-            timestamp: Date.now()
-        });
-    }
-    
     if (pendingBinaryOp) {
         applySelectedBinary();
     } else if (pendingUnaryOp) {
@@ -1754,18 +1224,6 @@ function confirmPendingOperation() {
 }
 
 function resetPendingOperation() {
-    // Record preview cancellation for cognitive planning analysis
-    if (currentTrialRecord && (pendingBinaryOp || pendingUnaryOp)) {
-        if (!currentTrialRecord.previewActions) {
-            currentTrialRecord.previewActions = [];
-        }
-        currentTrialRecord.previewActions.push({
-            action: 'cancel',
-            operationType: pendingBinaryOp ? pendingBinaryOp : pendingUnaryOp,
-            timestamp: Date.now()
-        });
-    }
-    
     if (pendingBinaryOp) {
         if (previewBackupPattern && previewBackupPattern.pattern) {
             currentPattern = JSON.parse(JSON.stringify(previewBackupPattern.pattern));
@@ -1804,7 +1262,7 @@ function resetPendingOperation() {
     }
 }
 
-// Inline preview panel: keep UI synchronized with current binary mode state
+// ============ PREVIEW PANEL UI ============
 function updateInlinePreviewPanel() {
     const panel = document.getElementById('binaryPreviewPanel');
     const header = document.querySelector('#binaryPreviewPanel .binary-preview-header');
@@ -1820,11 +1278,11 @@ function updateInlinePreviewPanel() {
     const resetBtn = document.getElementById('binaryResetBtn');
     const placeholder = document.getElementById('binaryPreviewPlaceholder');
     if (!panel || !title || !confirmBtn || !resetBtn) return;
-
+    
     const isBinaryMode = (pendingBinaryOp !== null);
     const isUnaryMode = (pendingUnaryOp !== null);
     const hasMode = isBinaryMode || isUnaryMode;
-
+    
     if (placeholder) {
         if (hasMode) {
             placeholder.style.display = 'none';
@@ -1833,13 +1291,13 @@ function updateInlinePreviewPanel() {
             placeholder.textContent = 'Select an operation to get started';
         }
     }
-
+    
     if (body) body.style.display = isBinaryMode ? 'flex' : 'none';
     if (unaryBody) unaryBody.style.display = isUnaryMode ? 'flex' : 'none';
-
+    
     resetBtn.disabled = !hasMode;
     confirmBtn.disabled = true;
-
+    
     if (!hasMode) {
         if (aBox) aBox.innerHTML = '';
         if (bBox) bBox.innerHTML = '';
@@ -1851,28 +1309,19 @@ function updateInlinePreviewPanel() {
         setWorkspaceGlow(false);
         return;
     }
-
+    
     if (isBinaryMode) {
         const { aSource, bSource } = resolveBinaryOperandSources();
         const opMessages = {
-            add: {
-                label: 'ADD',
-                hint: 'ADD – combine two patterns and keep all filled cells.'
-            },
-            subtract: {
-                label: 'SUBTRACT',
-                hint: 'SUBTRACT – choose a base pattern, then remove the second.'
-            },
-            union: {
-                label: 'UNION',
-                hint: 'UNION – keep only the overlapping cells from both patterns.'
-            }
+            add: { hint: 'ADD – combine two patterns and keep all filled cells.' },
+            subtract: { hint: 'SUBTRACT – choose a base pattern, then remove the second.' },
+            union: { hint: 'UNION – keep only the overlapping cells from both patterns.' }
         };
         const opConfig = opMessages[pendingBinaryOp] || opMessages.add;
         title.textContent = opConfig.hint;
         if (header) header.classList.toggle('is-hidden', !title.textContent.trim());
         if (opLabel) opLabel.textContent = `${pendingBinaryOp}(`;
-
+        
         if (aBox) {
             aBox.innerHTML = '';
             if (aSource && aSource.pattern) {
@@ -1882,7 +1331,7 @@ function updateInlinePreviewPanel() {
                 aBox.appendChild(svg);
             }
         }
-
+        
         if (bBox) {
             bBox.innerHTML = '';
             if (bSource && bSource.pattern) {
@@ -1892,7 +1341,7 @@ function updateInlinePreviewPanel() {
                 bBox.appendChild(svg);
             }
         }
-
+        
         const resolvedAPattern = aSource ? aSource.pattern : null;
         const resolvedBPattern = bSource ? bSource.pattern : null;
         const canPreview = !!resolvedAPattern && !!resolvedBPattern && !!pendingBinaryOp;
@@ -1902,29 +1351,17 @@ function updateInlinePreviewPanel() {
     } else if (isUnaryMode) {
         const source = resolveUnaryOperandSource();
         const unaryMessages = {
-            invert: {
-                label: 'INVERT',
-                hint: 'INVERT – flip filled and empty cells in the selected pattern.'
-            },
-            reflect_horizontal: {
-                label: 'FLIP H',
-                hint: 'FLIP H – reflect the pattern top ↔ bottom.'
-            },
-            reflect_vertical: {
-                label: 'FLIP V',
-                hint: 'FLIP V – reflect the pattern left ↔ right.'
-            },
-            reflect_diag: {
-                label: 'FLIP D',
-                hint: 'FLIP D – reflect the pattern across the diagonal.'
-            }
+            invert: { hint: 'INVERT – flip filled and empty cells in the selected pattern.' },
+            reflect_horizontal: { hint: 'FLIP H – reflect the pattern top ↔ bottom.' },
+            reflect_vertical: { hint: 'FLIP V – reflect the pattern left ↔ right.' },
+            reflect_diag: { hint: 'FLIP D – reflect the pattern across the diagonal.' }
         };
-
-        const config = unaryMessages[pendingUnaryOp] || { label: pendingUnaryOp, hint: 'Unary transform preview.' };
+        
+        const config = unaryMessages[pendingUnaryOp] || { hint: 'Unary transform preview.' };
         title.textContent = config.hint;
         if (header) header.classList.toggle('is-hidden', !title.textContent.trim());
         if (unaryOpLabel) unaryOpLabel.textContent = `${pendingUnaryOp}(`;
-
+        
         if (unaryOperandBox) {
             unaryOperandBox.innerHTML = '';
             if (source && source.pattern) {
@@ -1934,46 +1371,68 @@ function updateInlinePreviewPanel() {
                 unaryOperandBox.appendChild(svg);
             }
         }
-
+        
         const hasPreview = !!previewPattern && !!(source && source.pattern);
         confirmBtn.disabled = !hasPreview;
         setWorkspaceGlow(hasPreview);
     }
 }
 
-function undoLast() {
-    if (operationsHistory.length > 0) {
-        const removed = operationsHistory.pop();
-        
-        // Record undo action for cognitive analysis
-        if (currentTrialRecord) {
-            if (!currentTrialRecord.undoActions) {
-                currentTrialRecord.undoActions = [];
-            }
-            currentTrialRecord.undoActions.push({
-                type: 'undo',
-                removedStep: removed.operation,
-                removedStepIndex: operationsHistory.length,
-                timestamp: Date.now()
-            });
-        }
-        
-        // Clear workflow selections that reference removed items
-        workflowSelections = workflowSelections.filter(idx => idx < operationsHistory.length);
-        
-        if (operationsHistory.length > 0) {
-            currentPattern = operationsHistory[operationsHistory.length - 1].pattern;
-            renderPattern(currentPattern, 'workspace');
+// ============ BUTTON STATES ============
+function updateAllButtonStates() {
+    const isBinaryMode = (pendingBinaryOp !== null);
+    const isUnaryMode = (pendingUnaryOp !== null);
+    
+    // Primitives
+    const prims = document.querySelectorAll('.primitive-btn');
+    prims.forEach(b => {
+        if (isBinaryMode || isUnaryMode) {
+            b.classList.remove('disabled');
+            b.classList.add('enabled');
+            b.title = b.getAttribute('data-original-title') || 'Create a pattern to use in the current operation';
         } else {
-            currentPattern = geomDSL.blank();
-            renderPattern(currentPattern, 'workspace');
+            b.classList.add('disabled');
+            b.classList.remove('enabled');
+            b.title = 'Select an operation first to use primitives';
         }
-        updateOperationsLog();
-        renderWorkflow();
-        updateAllButtonStates();
-    }
+    });
+    
+    // Unary buttons
+    const unaryButtons = document.querySelectorAll('.unary-btn');
+    unaryButtons.forEach(btn => {
+        const op = btn.getAttribute('data-op');
+        btn.classList.remove('disabled');
+        btn.classList.add('enabled');
+        btn.title = btn.getAttribute('data-original-title') || '';
+        
+        if (pendingUnaryOp === op) {
+            btn.classList.add('selected');
+        } else {
+            btn.classList.remove('selected');
+        }
+    });
+    
+    // Binary buttons
+    const bins = ['add','subtract','union'];
+    bins.forEach(name => {
+        const btn = document.getElementById('bin-' + name);
+        if (!btn) return;
+        
+        if (pendingBinaryOp === name) {
+            btn.classList.add('selected');
+            btn.classList.remove('disabled');
+            btn.classList.add('enabled');
+            btn.title = btn.getAttribute('data-original-title') || '';
+        } else {
+            btn.classList.remove('selected');
+            btn.classList.remove('disabled');
+            btn.classList.add('enabled');
+            btn.title = btn.getAttribute('data-original-title') || '';
+        }
+    });
 }
 
+// ============ INITIALIZATION ============
 function seedAddPreviewWithBlankOperand() {
     pendingBinaryOp = null;
     pendingUnaryOp = null;
@@ -1991,130 +1450,38 @@ function seedAddPreviewWithBlankOperand() {
     updateInlinePreviewPanel();
 }
 
-function resetWorkspace() {
-    // Record reset action for cognitive analysis
-    if (currentTrialRecord) {
-        if (!currentTrialRecord.undoActions) {
-            currentTrialRecord.undoActions = [];
-        }
-        currentTrialRecord.undoActions.push({
-            type: 'reset',
-            stepsCleared: operationsHistory.length,
-            timestamp: Date.now()
-        });
-    }
-    
-    currentPattern = geomDSL.blank();
-    renderPattern(currentPattern, 'workspace');
-    operationsHistory = [];
-    workflowSelections = [];
-    pendingBinaryOp = null;
-    pendingUnaryOp = null;
-    previewPattern = null;
-    previewBackupPattern = null;
-    resetInlinePreviewState();
-    resetUnaryPreviewState();
-    setWorkspaceGlow(false);
-    updateOperationsLog();
-    renderWorkflow();
-    // reflect strict gating state after reset
-    updateAllButtonStates();
-    updateInlinePreviewPanel();
-}
-
-function submitAnswer() {
-    if (!currentPattern) {
-        showToast('Please create a pattern first', 'warning');
-        return;
-    }
-
-    const match = JSON.stringify(currentPattern) === JSON.stringify(targetPattern);
-    const previouslySuccessful = currentTrialRecord?.success === true;
-
-    const modal = document.getElementById('feedbackModal');
-    const icon = document.getElementById('feedbackIcon');
-    const message = document.getElementById('feedbackMessage');
-
-    let pointsAwardedThisSubmission = 0;
-    const eligibleForPoints = match && !previouslySuccessful;
-    if (eligibleForPoints) {
-        pointsAwardedThisSubmission = pointsPerCorrect; // Award 10 points per correct answer
-        totalPoints += pointsAwardedThisSubmission;
-        updatePointsDisplay();
-    }
-
-    // Record trial data
-    if (currentTrialRecord) {
-        const previousPointsEarned = currentTrialRecord.pointsEarned || 0;
-        currentTrialRecord.operations = operationsHistory.map(h => h.operation);
-        currentTrialRecord.stepsCount = operationsHistory.length;
-        currentTrialRecord.timeSpent = Date.now() - trialStartTime;
-        currentTrialRecord.success = match;
-        currentTrialRecord.submitted = true;
-        const trialEarned = match ? Math.max(previousPointsEarned, pointsAwardedThisSubmission) : previousPointsEarned;
-        currentTrialRecord.pointsEarned = trialEarned;
-        currentTrialRecord.pointsAwarded = pointsAwardedThisSubmission;
-        currentTrialRecord.totalPointsAfter = totalPoints;
-    }
-
-    // Show centered modal feedback
-    if (modal && icon && message) {
-        const totalDisplay = formatPoints(totalPoints);
-        if (match) {
-            icon.textContent = '✓';
-            icon.className = 'feedback-icon success';
-            const lines = [];
-            if (pointsAwardedThisSubmission > 0) {
-                lines.push(`Correct! +${formatPoints(pointsAwardedThisSubmission)} point${pointsAwardedThisSubmission > 1 ? 's' : ''}.`);
-            } else if (previouslySuccessful) {
-                lines.push('Correct! Point was already awarded for this trial.');
-            } else {
-                lines.push('Correct!');
-            }
-            lines.push(`Used ${operationsHistory.length} operations.`);
-            lines.push(`Score: ${totalDisplay}/${POINTS_MAX}`);
-            message.textContent = lines.join('\n');
-        } else {
-            icon.textContent = '✗';
-            icon.className = 'feedback-icon error';
-            const lines = [
-                'Not quite right. 0 points this round.',
-                `Used ${operationsHistory.length} operations.`,
-                `Score: ${totalDisplay}/${POINTS_MAX}`
-            ];
-            message.textContent = lines.join('\n');
-        }
-
-        modal.classList.add('show');
-
-        setTimeout(() => {
-            modal.classList.remove('show');
-            if (currentTestIndex < getTotalTrials() - 1) {
-                const nextIndex = currentTestIndex + 1;
-                resetWorkspace();
-                loadTrial(nextIndex);
-            } else {
-                showCompletionModal();
-            }
-        }, 2000);
-    }
-}
-
 function initializeApp() {
+    // Clear gallery at the start of each free play session
+    localStorage.removeItem('patternGallery');
+    
+    // Load favorites from localStorage
+    favorites = loadFavoritesFromStorage();
+    
+    // Initialize session recording for research
+    initializeSessionRecord();
+    
     initializePrimitiveIcons();
     initializePreviewControllers();
     bindButtonInteractions();
     registerKeyboardShortcuts();
     updateInlinePreviewPanel();
     renderFavoritesShelf();
-    updatePointsDisplay();
+    updateGalleryCount();
+    
+    // Initialize workspace
+    renderPattern(currentPattern, 'workspace');
+    
+    // Seed with add(blank, ?) like in task mode
+    seedAddPreviewWithBlankOperand();
 }
 
 function initializePreviewControllers() {
     pendingBinaryOp = null;
     pendingUnaryOp = null;
-    resetInlinePreviewState();
-    resetUnaryPreviewState();
+    inlinePreview = createInlinePreviewState();
+    unaryPreviewState = createUnaryPreviewState();
+    appState.inlinePreview = inlinePreview;
+    appState.unaryPreviewState = unaryPreviewState;
     updateAllButtonStates();
 }
 
@@ -2125,7 +1492,7 @@ function bindButtonInteractions() {
             applyPrimitive(op);
         });
     });
-
+    
     document.querySelectorAll('.binary-btn[data-op]').forEach(btn => {
         btn.addEventListener('dblclick', () => {
             if (btn.classList.contains('disabled')) return;
@@ -2133,15 +1500,31 @@ function bindButtonInteractions() {
             selectBinaryOp(op);
         });
     });
-
+    
     document.querySelectorAll('.transform-btn, .primitive-btn').forEach(btn => {
         if (!btn.getAttribute('data-original-title') && btn.title) {
             btn.setAttribute('data-original-title', btn.title);
         }
     });
+    
+    // Bind End Free Play button
+    const endBtn = document.getElementById('endFreePlayBtn');
+    console.log('Looking for End Free Play button:', endBtn);
+    if (endBtn) {
+        console.log('End Free Play button found, adding event listener');
+        endBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            console.log('End Free Play button clicked!');
+            endFreePlayMode();
+        });
+        // Also test if button is clickable
+        console.log('Button style:', window.getComputedStyle(endBtn).display);
+    } else {
+        console.error('End Free Play button not found in DOM');
+    }
 }
 
-function handleExperimentShortcut(event) {
+function handleShortcut(event) {
     if (!previewPattern) return;
     if (event.key === 'Enter') {
         event.preventDefault();
@@ -2153,22 +1536,186 @@ function handleExperimentShortcut(event) {
 }
 
 function registerKeyboardShortcuts() {
-    document.addEventListener('keydown', handleExperimentShortcut);
+    document.addEventListener('keydown', handleShortcut);
 }
 
-// Run on initial load: initialize and auto-start
-// (Handled by the initFreePlay call added earlier)
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    initializeApp();
+});
 
-// Export functions to global scope for HTML buttons
+// Export all session data for research
+function exportAllSessionData() {
+    const allSessions = JSON.parse(localStorage.getItem('freeplaySessions') || '[]');
+    const gallery = getGalleryFromStorage();
+    const helpers = loadFavoritesFromStorage();
+    
+    const exportData = {
+        exportDate: new Date().toISOString(),
+        totalSessions: allSessions.length,
+        sessions: allSessions,
+        gallery: gallery,
+        helpers: helpers,
+        currentSession: sessionRecord
+    };
+    
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.download = `freeplay_data_${Date.now()}.json`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+    
+    showToast('Session data exported!', 'success', 2000);
+}
+
+// End free play mode and show completion modal
+function endFreePlayMode() {
+    try {
+        // Finalize session recording - IMPORTANT: This data is still recorded for research!
+        if (sessionRecord) {
+            sessionRecord.endTime = new Date().toISOString();
+            sessionRecord.durationSeconds = Math.floor((new Date() - new Date(sessionRecord.startTime)) / 1000);
+            saveSessionRecord();
+        }
+        
+        // Collect statistics for research (not displayed to user, but saved in data)
+        const gallery = getGalleryFromStorage();
+        const totalOps = sessionRecord ? sessionRecord.operationActions.length : 0;
+        const helpersUsed = sessionRecord ? Object.keys(sessionRecord.helperUsageCount).length : 0;
+        
+        // Log for debugging/verification
+        console.log('Session completed - Stats collected for research:', {
+            patternsCreated: gallery.length,
+            totalOperations: totalOps,
+            helpersUsed: helpersUsed
+        });
+        
+        // Render patterns (display only, stats hidden from user)
+        const grid = document.getElementById('creationsGrid');
+        grid.innerHTML = '';
+        
+        if (gallery.length === 0) {
+            grid.innerHTML = '<p style="color: #64748b; text-align: center; grid-column: 1/-1; font-size: 0.95rem; padding: 2rem;">No patterns saved</p>';
+        } else {
+            gallery.forEach((item, i) => {
+                const card = document.createElement('div');
+                card.style.cssText = 'background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; padding: 0.5rem; transition: all 0.2s;';
+                
+                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                svg.setAttribute('viewBox', `0 0 ${SIZE * 10} ${SIZE * 10}`);
+                svg.style.cssText = 'width: 100%; height: auto; background: #ffffff; border-radius: 4px;';
+                
+                // item.pattern is already a 2D array (grid)
+                const pattern = item.pattern;
+                for (let r = 0; r < SIZE; r++) {
+                    for (let c = 0; c < SIZE; c++) {
+                        if (pattern[r] && pattern[r][c]) {
+                            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                            rect.setAttribute('x', c * 10);
+                            rect.setAttribute('y', r * 10);
+                            rect.setAttribute('width', 10);
+                            rect.setAttribute('height', 10);
+                            rect.setAttribute('fill', '#1e3a8a');
+                            svg.appendChild(rect);
+                        }
+                    }
+                }
+                
+                card.appendChild(svg);
+                
+                const label = document.createElement('div');
+                label.style.cssText = 'font-size: 0.7rem; color: #64748b; text-align: center; margin-top: 0.4rem; font-weight: 500;';
+                label.textContent = `#${i + 1}`;
+                card.appendChild(label);
+                
+                grid.appendChild(card);
+            });
+        }
+        
+        // Show modal
+        const modal = document.getElementById('freeplayCompletionModal');
+        if (modal) {
+            modal.style.display = 'flex';
+        } else {
+            console.error('Modal not found!');
+        }
+    } catch (error) {
+        console.error('Error in endFreePlayMode:', error);
+    }
+}
+
+// Download combined task + free play data
+function downloadCombinedData() {
+    // Load task data from localStorage
+    const taskDataStr = localStorage.getItem('taskExperimentData');
+    const taskCompletionTime = localStorage.getItem('taskCompletionTime');
+    
+    let taskData = null;
+    if (taskDataStr) {
+        try {
+            taskData = JSON.parse(taskDataStr);
+        } catch (e) {
+            console.error('Failed to parse task data:', e);
+        }
+    }
+    
+    // Get free play data
+    const allSessions = JSON.parse(localStorage.getItem('freeplaySessions') || '[]');
+    const gallery = getGalleryFromStorage();
+    const helpers = loadFavoritesFromStorage();
+    
+    // Build combined export
+    const combinedData = {
+        metadata: {
+            experimentName: 'Pattern Experiment - Complete',
+            taskCompletionTime: taskCompletionTime || 'unknown',
+            freePlayCompletionTime: new Date().toISOString(),
+            includesFreePlay: true,
+            exportDate: new Date().toISOString()
+        },
+        taskData: taskData || { note: 'No task data found' },
+        freePlayData: {
+            totalSessions: allSessions.length,
+            sessions: allSessions,
+            gallery: gallery,
+            finalHelpers: helpers,
+            summary: {
+                totalPatternsSaved: gallery.length,
+                totalOperations: allSessions.reduce((sum, s) => sum + (s.operationActions?.length || 0), 0),
+                totalButtonClicks: allSessions.reduce((sum, s) => sum + (s.buttonClickActions?.length || 0), 0),
+                uniqueHelpersCreated: helpers.length
+            }
+        }
+    };
+    
+    // Create and download file
+    const dataStr = JSON.stringify(combinedData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.download = `pattern_experiment_complete_${Date.now()}.json`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+    
+    showToast('Complete experiment data downloaded!', 'success', 3000);
+}
+
+// Expose functions globally
 Object.assign(globalScope, {
     selectBinaryOp,
     applyTransform,
     applyPrimitive,
     confirmPendingOperation,
     resetPendingOperation,
-    saveToGallery,
     addLastToFavorites,
-    undoLast,
-    resetWorkspace,
-    finishFreePlay
+    saveToGallery,
+    viewGallery,
+    clearWorkspace,
+    exportAllSessionData,
+    endFreePlayMode,
+    downloadCombinedData
 });

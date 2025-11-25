@@ -584,7 +584,11 @@ body:has(#experimentContent) {
 
 .program-header h3 {
     margin-right: auto;
-    font-size: 1rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #334155;
+    letter-spacing: 0.08em;
 }
 
 .operations-log {
@@ -935,10 +939,51 @@ body:has(#experimentContent) {
     padding: 0.4rem 0.2rem;
 }
 
+/* Helper item with delete button for freeplay */
+.helper-item {
+    position: relative;
+    display: inline-block;
+}
+
+.helper-delete {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #ef4444;
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.helper-item:hover .helper-delete {
+    opacity: 1;
+}
+
 .helpers-section .panel-subtitle {
-    text-transform: none;
-    font-size: 1.15rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #334155;
+    letter-spacing: 0.08em;
     margin-bottom: 0.6rem;
+}
+
+.helpers-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #334155;
+    letter-spacing: 0.08em;
+    margin: 0 0 0.6rem 0;
 }
 
 .btn,
@@ -1302,6 +1347,98 @@ body:has(#experimentContent) {
     color: var(--color-primary-strong);
     font-weight: 700;
     font-size: 1.15rem;
+}
+
+/* Free Play Completion Modal Styles */
+.modal {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(8px);
+    z-index: 2000;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.completion-container {
+    width: 100%;
+}
+
+.completion-header {
+    text-align: center;
+}
+
+.completion-header h2 {
+    font-size: 1.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.completion-subtitle {
+    font-size: 1rem;
+}
+
+.completion-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: rgba(30, 41, 59, 0.5);
+    border-radius: 8px;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-label {
+    display: block;
+    font-size: 0.85rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.5rem;
+}
+
+.stat-value {
+    display: block;
+    font-size: 2rem;
+    font-weight: 700;
+    color: #3b82f6;
+}
+
+.completion-actions {
+    margin: 2rem 0;
+    text-align: center;
+}
+
+.btn-large {
+    padding: 1rem 2rem;
+    font-size: 1.1rem;
+}
+
+.completion-note {
+    text-align: center;
+    color: #94a3b8;
+    font-size: 0.95rem;
+    margin-top: 1.5rem;
+}
+
+.completion-contact {
+    text-align: center;
+    color: #cbd5e1;
+    font-size: 0.9rem;
+    margin-top: 0.75rem;
+    padding: 1rem;
+    background: rgba(30, 41, 59, 0.3);
+    border-radius: 6px;
+}
+
+.completion-contact strong {
+    color: #3b82f6;
+    font-weight: 600;
 }
 
 /* Utility animations ---------------------------------------------- */
@@ -1855,6 +1992,25 @@ body:has(#experimentContent) {
     border-color: var(--color-text-muted);
     cursor: not-allowed;
     opacity: 0.6;
+}
+
+/* Red danger button for End Free Play */
+#endFreePlayBtn {
+    background: #dc2626 !important;
+    color: white !important;
+    border: none !important;
+    transition: all 0.2s ease;
+}
+
+#endFreePlayBtn:hover {
+    background: #b91c1c !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);
+}
+
+#endFreePlayBtn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(220, 38, 38, 0.3);
 }
 
 .btn-large {

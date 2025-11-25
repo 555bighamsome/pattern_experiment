@@ -125,9 +125,31 @@ function showCompletionModal() {
 }
 // --- TUTORIAL STATE (removed) ---
 // Keep minimal stubs so the rest of the code can call without effects.
-// --- FAVORITES SYSTEM (persist across trials) ---
+// --- FAVORITES SYSTEM (tutorial uses separate storage) ---
 // Store snapshots, not indices, so favorites survive when operationsHistory resets between trials
 // favorites: Array<{ id: string, pattern: number[][], op?: string, meta?: { opFn?: string, operands?: { a?: number[][], b?: number[][], input?: number[][] } }, createdAt: number }>
+
+// Load favorites from localStorage (tutorial uses separate key)
+function loadFavoritesFromStorage() {
+    try {
+        const stored = localStorage.getItem('patternHelpers_tutorial');
+        if (stored) {
+            return JSON.parse(stored);
+        }
+    } catch (e) {
+        console.warn('Failed to load favorites from localStorage:', e);
+    }
+    return [];
+}
+
+// Save favorites to localStorage (tutorial uses separate key)
+function saveFavoritesToStorage() {
+    try {
+        localStorage.setItem('patternHelpers_tutorial', JSON.stringify(favorites));
+    } catch (e) {
+        console.warn('Failed to save favorites to localStorage:', e);
+    }
+}
 
 function patternsEqual(a, b) {
     if (!a || !b || a.length !== b.length) return false;
@@ -166,6 +188,7 @@ function addFavoriteFromEntry(entry) {
         createdAt: Date.now()
     };
     favorites.push(snapshot);
+    saveFavoritesToStorage(); // Persist to localStorage
     
     // Record favorite action for cognitive analysis with complete pattern data
     if (currentTrialRecord) {
@@ -203,6 +226,7 @@ function removeFavoriteById(id) {
     }
     
     favorites = favorites.filter(f => f.id !== id);
+    saveFavoritesToStorage(); // Persist to localStorage
 }
 
 function toggleFavoriteFromWorkflow(idx) {
@@ -257,9 +281,16 @@ function renderFavoritesShelf() {
         return;
     }
 
-    // Render favorites as minimalist primitive-style buttons
+    // Render favorites as minimalist primitive-style buttons with delete option
     list.forEach(fav => {
         const { id, pattern } = fav;
+        
+        // Wrapper for button + delete button
+        const wrapper = document.createElement('div');
+        wrapper.className = 'helper-item-wrapper';
+        wrapper.style.position = 'relative';
+        wrapper.style.display = 'inline-block';
+        
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'primitive-btn helper-primitive';
@@ -276,7 +307,32 @@ function renderFavoritesShelf() {
                 useFavoritePattern(id, pattern);
             }
         });
-        shelf.appendChild(btn);
+        
+        // Delete button (visible on hover)
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'helper-delete-btn';
+        deleteBtn.innerHTML = '×';
+        deleteBtn.title = 'Remove from helpers';
+        deleteBtn.style.cssText = 'position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:50%;background:#ef4444;color:white;border:none;cursor:pointer;font-size:14px;line-height:1;padding:0;display:none;z-index:10;';
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            removeFavoriteById(id);
+            renderFavoritesShelf();
+            renderWorkflow();
+        });
+        
+        // Show/hide delete button on hover
+        wrapper.addEventListener('mouseenter', () => {
+            deleteBtn.style.display = 'block';
+        });
+        wrapper.addEventListener('mouseleave', () => {
+            deleteBtn.style.display = 'none';
+        });
+        
+        wrapper.appendChild(btn);
+        wrapper.appendChild(deleteBtn);
+        shelf.appendChild(wrapper);
     });
 }
 
@@ -1181,10 +1237,15 @@ function updateAllButtonStates() {
     const unaryButtons = document.querySelectorAll('.unary-btn');
     unaryButtons.forEach(btn => {
         const op = btn.getAttribute('data-op');
-        // Allow switching between operations - don't disable unary buttons when in binary mode
-        btn.classList.remove('disabled');
-        btn.classList.add('enabled');
-        btn.title = btn.getAttribute('data-original-title') || '';
+        if (isBinaryMode) {
+            btn.classList.add('disabled');
+            btn.classList.remove('enabled');
+            btn.title = 'Unary operations are disabled while a binary operation is active';
+        } else {
+            btn.classList.remove('disabled');
+            btn.classList.add('enabled');
+            btn.title = btn.getAttribute('data-original-title') || '';
+        }
 
         if (pendingUnaryOp === op) {
             btn.classList.add('selected');
@@ -1208,10 +1269,15 @@ function updateAllButtonStates() {
             btn.title = btn.getAttribute('data-original-title') || '';
         } else {
             btn.classList.remove('selected');
-            // Allow switching between operations - don't disable binary buttons when in unary mode
-            btn.classList.remove('disabled');
-            btn.classList.add('enabled');
-            btn.title = btn.getAttribute('data-original-title') || '';
+            if (isUnaryMode) {
+                btn.classList.add('disabled');
+                btn.classList.remove('enabled');
+                btn.title = 'Binary operations are disabled while a unary operation is active';
+            } else {
+                btn.classList.remove('disabled');
+                btn.classList.add('enabled');
+                btn.title = btn.getAttribute('data-original-title') || '';
+            }
         }
     });
     
@@ -1887,6 +1953,9 @@ function submitAnswer() {
 }
 
 function initializeApp() {
+    // Load favorites from localStorage
+    favorites = loadFavoritesFromStorage();
+    
     initializePrimitiveIcons();
     initializePreviewControllers();
     bindButtonInteractions();

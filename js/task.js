@@ -127,22 +127,52 @@ function sanitizeTrialRecord(trial) {
     };
 }
 
-function enterFreePlay() {
-    // Save data to localStorage to pass to free play
-    try {
-        localStorage.setItem('experimentData', JSON.stringify(allTrialsData));
-        localStorage.setItem('experimentFavorites', JSON.stringify(favorites));
-    } catch (e) {
-        console.error("Failed to save data for free play", e);
-        showToast("Could not save data for free play. Please download data instead.", "error");
-        return;
-    }
+// Download only task data (when user skips free play)
+function downloadTaskDataOnly() {
+    const sanitizedTrials = allTrialsData
+        .map(sanitizeTrialRecord)
+        .filter(Boolean);
+
+    const experimentData = {
+        metadata: {
+            experimentName: 'Pattern DSL Experiment (Task Only)',
+            completionTime: new Date().toISOString(),
+            browserInfo: {
+                language: navigator.language
+            },
+            includesFreePlay: false
+        },
+        taskData: {
+            trials: sanitizedTrials,
+            summary: {
+                totalTrials: sanitizedTrials.length,
+                successfulTrials: sanitizedTrials.filter(t => t && t.success === true).length
+            }
+        }
+    };
+
+    const jsonString = JSON.stringify(experimentData, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    link.download = `pattern_experiment_task_only_${timestamp}.json`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
     
-    // Redirect to free play page
-    window.location.href = 'freeplay.html';
+    showToast('Task data downloaded!', 'success', 2000);
 }
 
-globalScope.enterFreePlay = enterFreePlay;
+// Save task data to localStorage before entering free play
+function enterFreePlayMode() {
+    // Save task data to localStorage for later combination
+    localStorage.setItem('taskExperimentData', JSON.stringify(allTrialsData));
+    localStorage.setItem('taskCompletionTime', new Date().toISOString());
+    
+    // Navigate to free play
+    window.location.href = 'freeplay.html';
+}
 
 function downloadExperimentData() {
     const sanitizedTrials = allTrialsData
@@ -192,9 +222,31 @@ globalScope.downloadExperimentData = downloadExperimentData;
 
 // --- TUTORIAL STATE (removed) ---
 // Keep minimal stubs so the rest of the code can call without effects.
-// --- FAVORITES SYSTEM (persist across trials) ---
+// --- FAVORITES SYSTEM (persist across trials and pages) ---
 // Store snapshots, not indices, so favorites survive when operationsHistory resets between trials
 // favorites: Array<{ id: string, pattern: number[][], op?: string, meta?: { opFn?: string, operands?: { a?: number[][], b?: number[][], input?: number[][] } }, createdAt: number }>
+
+// Load favorites from localStorage
+function loadFavoritesFromStorage() {
+    try {
+        const stored = localStorage.getItem('patternHelpers');
+        if (stored) {
+            return JSON.parse(stored);
+        }
+    } catch (e) {
+        console.warn('Failed to load favorites from localStorage:', e);
+    }
+    return [];
+}
+
+// Save favorites to localStorage
+function saveFavoritesToStorage() {
+    try {
+        localStorage.setItem('patternHelpers', JSON.stringify(favorites));
+    } catch (e) {
+        console.warn('Failed to save favorites to localStorage:', e);
+    }
+}
 
 function patternsEqual(a, b) {
     if (!a || !b || a.length !== b.length) return false;
@@ -233,6 +285,7 @@ function addFavoriteFromEntry(entry) {
         createdAt: Date.now()
     };
     favorites.push(snapshot);
+    saveFavoritesToStorage(); // Persist to localStorage
     
     // Record favorite action for cognitive analysis with complete pattern data
     if (currentTrialRecord) {
@@ -270,6 +323,7 @@ function removeFavoriteById(id) {
     }
     
     favorites = favorites.filter(f => f.id !== id);
+    saveFavoritesToStorage(); // Persist to localStorage
 }
 
 function toggleFavoriteFromWorkflow(idx) {
@@ -288,15 +342,12 @@ function toggleFavoriteFromWorkflow(idx) {
 
 // Helpers header '+' action: favorite the latest step if available
 function addLastToFavorites() {
-    // Prefer the latest workflow step if available, otherwise allow favoriting current workspace
-    let entry = null;
-    if (operationsHistory && operationsHistory.length > 0) {
-        const idx = operationsHistory.length - 1;
-        entry = operationsHistory[idx];
-    } else if (currentPattern && Array.isArray(currentPattern)) {
-        // create a lightweight entry from current workspace pattern so users can favorite it anytime
-        entry = { pattern: JSON.parse(JSON.stringify(currentPattern)), operation: 'workspace' };
+    if (!operationsHistory || operationsHistory.length === 0) {
+        showToast('No steps yet. Perform an operation first.', 'warning');
+        return;
     }
+    const idx = operationsHistory.length - 1;
+    const entry = operationsHistory[idx];
     if (!entry || !entry.pattern) {
         showToast('Nothing to favorite.', 'warning');
         return;
@@ -327,13 +378,16 @@ function renderFavoritesShelf() {
         return;
     }
 
-    // Render favorites as minimalist primitive-style buttons
+    // Render favorites as minimalist primitive-style buttons with delete option
     list.forEach(fav => {
         const { id, pattern } = fav;
-        // container for favorite with thumbnail and delete control
+        
+        // Wrapper for button + delete button
         const wrapper = document.createElement('div');
-        wrapper.className = 'helper-item';
-
+        wrapper.className = 'helper-item-wrapper';
+        wrapper.style.position = 'relative';
+        wrapper.style.display = 'inline-block';
+        
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'primitive-btn helper-primitive';
@@ -350,22 +404,31 @@ function renderFavoritesShelf() {
                 useFavoritePattern(id, pattern);
             }
         });
-
-        // delete control (always available)
-        const del = document.createElement('button');
-        del.type = 'button';
-        del.className = 'helper-delete';
-        del.title = 'Remove helper';
-        del.textContent = '✕';
-        del.addEventListener('click', (e) => {
+        
+        // Delete button (visible on hover)
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'helper-delete-btn';
+        deleteBtn.innerHTML = '×';
+        deleteBtn.title = 'Remove from helpers';
+        deleteBtn.style.cssText = 'position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:50%;background:#ef4444;color:white;border:none;cursor:pointer;font-size:14px;line-height:1;padding:0;display:none;z-index:10;';
+        deleteBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             removeFavoriteById(id);
             renderFavoritesShelf();
-            showToast('Removed helper.', 'info');
+            renderWorkflow();
         });
-
+        
+        // Show/hide delete button on hover
+        wrapper.addEventListener('mouseenter', () => {
+            deleteBtn.style.display = 'block';
+        });
+        wrapper.addEventListener('mouseleave', () => {
+            deleteBtn.style.display = 'none';
+        });
+        
         wrapper.appendChild(btn);
-        wrapper.appendChild(del);
+        wrapper.appendChild(deleteBtn);
         shelf.appendChild(wrapper);
     });
 }
@@ -1270,10 +1333,15 @@ function updateAllButtonStates() {
     const unaryButtons = document.querySelectorAll('.unary-btn');
     unaryButtons.forEach(btn => {
         const op = btn.getAttribute('data-op');
-        // Allow switching between operations - don't disable unary buttons when in binary mode
-        btn.classList.remove('disabled');
-        btn.classList.add('enabled');
-        btn.title = btn.getAttribute('data-original-title') || '';
+        if (isBinaryMode) {
+            btn.classList.add('disabled');
+            btn.classList.remove('enabled');
+            btn.title = 'Unary operations are disabled while a binary operation is active';
+        } else {
+            btn.classList.remove('disabled');
+            btn.classList.add('enabled');
+            btn.title = btn.getAttribute('data-original-title') || '';
+        }
 
         if (pendingUnaryOp === op) {
             btn.classList.add('selected');
@@ -1297,10 +1365,15 @@ function updateAllButtonStates() {
             btn.title = btn.getAttribute('data-original-title') || '';
         } else {
             btn.classList.remove('selected');
-            // Allow switching between operations - don't disable binary buttons when in unary mode
-            btn.classList.remove('disabled');
-            btn.classList.add('enabled');
-            btn.title = btn.getAttribute('data-original-title') || '';
+            if (isUnaryMode) {
+                btn.classList.add('disabled');
+                btn.classList.remove('enabled');
+                btn.title = 'Binary operations are disabled while a unary operation is active';
+            } else {
+                btn.classList.remove('disabled');
+                btn.classList.add('enabled');
+                btn.title = btn.getAttribute('data-original-title') || '';
+            }
         }
     });
     
@@ -1960,6 +2033,11 @@ function submitAnswer() {
 }
 
 function initializeApp() {
+    // Clear helpers at the start of real task (don't carry over from tutorial)
+    favorites = [];
+    localStorage.removeItem('patternHelpers');
+    saveFavoritesToStorage();
+    
     initializePrimitiveIcons();
     initializePreviewControllers();
     bindButtonInteractions();
@@ -2031,5 +2109,7 @@ Object.assign(globalScope, {
     submitAnswer,
     addLastToFavorites,
     undoLast,
-    resetWorkspace
+    resetWorkspace,
+    downloadTaskDataOnly,
+    enterFreePlayMode
 });

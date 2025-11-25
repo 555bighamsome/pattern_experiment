@@ -3,120 +3,86 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0">
-    <title>Pattern DSL - Free Play</title>
+    <title>Pattern DSL Experiment - Free Play</title>
     <link rel="stylesheet" href="../css/styles.css">
     <style>
-        /* Free Play specific styles */
-        .gallery-card {
-            grid-area: target;
-            display: flex;
-            flex-direction: column;
-            background-color: #1e293b;
-            border: 1px solid #334155;
+        /* Free Play Mode - Aligned Gallery + Preview above Workspace */
+        .content-area {
+            /* 4 columns: Gallery+Preview (split 250px each) | Operations | Program */
+            grid-template-columns: 250px 250px 250px 380px !important;
+            grid-template-rows: 130px 560px !important;
+            grid-template-areas:
+                "points preview controls program"
+                "workspace workspace controls program" !important;
         }
         
-        .gallery-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-            gap: 10px;
-            padding: 10px;
-            overflow-y: auto;
-            flex: 1;
+        /* Gallery counter - top left */
+        .points-card {
+            grid-area: points !important;
         }
-
-        .gallery-item {
-            aspect-ratio: 1;
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-radius: 4px;
-            cursor: pointer;
-            position: relative;
-            transition: transform 0.2s, border-color 0.2s;
+        
+        /* Preview - top right, next to gallery */
+        .preview-card {
+            grid-area: preview !important;
         }
-
-        .gallery-item:hover {
-            transform: scale(1.05);
-            border-color: #3b82f6;
+        
+        /* WORKSPACE - spans 2 columns below gallery+preview */
+        .pattern-card {
+            grid-area: workspace !important;
         }
-
-        .gallery-item canvas {
-            width: 100%;
-            height: 100%;
-            border-radius: 3px;
+        
+        /* Controls - right side, spans both rows */
+        .controls-card {
+            grid-area: controls !important;
         }
-
-        .gallery-empty {
-            grid-column: 1 / -1;
-            text-align: center;
-            color: #64748b;
-            padding: 20px;
-            font-style: italic;
+        
+        /* Program - far right, spans both rows */
+        .program-card {
+            grid-area: program !important;
         }
-
-        .freeplay-header {
+        
+        /* Make workspace canvas fill available space */
+        .workspace-canvas {
+            width: 100% !important;
+            height: 100% !important;
             display: flex;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
-            padding: 10px 20px;
-            background: #1e293b;
-            border-bottom: 1px solid #334155;
-            margin-bottom: 20px;
+            padding: 0.5rem !important;
         }
-
-        .freeplay-title {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #e2e8f0;
+        
+        .workspace-canvas svg {
+            width: 60% !important;
+            height: 60% !important;
+            max-width: none !important;
+            max-height: none !important;
         }
-
-        .freeplay-actions {
-            display: flex;
-            gap: 10px;
-        }
-
-        /* Achievement animation */
-        @keyframes popIn {
-            0% { transform: scale(0); opacity: 0; }
-            70% { transform: scale(1.2); opacity: 1; }
-            100% { transform: scale(1); opacity: 1; }
-        }
-
-        .achievement-toast {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(16, 185, 129, 0.9);
-            color: white;
-            padding: 20px 40px;
-            border-radius: 50px;
-            font-size: 1.5rem;
-            font-weight: bold;
-            z-index: 1000;
-            pointer-events: none;
-            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.27) forwards;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            display: flex;
-            align-items: center;
-            gap: 10px;
+        
+        .preview-canvas svg {
+            width: 100% !important;
+            height: 100% !important;
         }
     </style>
 </head>
 <body class="dark-page">
     <div id="experimentContent">
-        <div class="freeplay-header">
-            <div class="freeplay-title">✨ Creative Mode</div>
-            <div class="freeplay-actions">
-                <button class="btn btn-warning" onclick="finishFreePlay()">
-                    Finish Session & Download Data
+        <div class="progress-bar" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="progress-info">
+                Free Play Mode - Create and Save Your Patterns
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+                <button class="btn btn-secondary" onclick="viewGallery()" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">
+                    View Gallery
+                </button>
+                <button id="endFreePlayBtn" class="btn" onclick="if(typeof endFreePlayMode === 'function'){endFreePlayMode()}else{alert('Function not loaded')}" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; background: #dc2626; color: white; border: none; cursor: pointer;">
+                    End Free Play
                 </button>
             </div>
         </div>
 
         <div class="content-area">
-            <!-- Reusing points card for session stats -->
-            <div class="points-card" id="statsCard">
-                <div class="points-label">Creations</div>
+            <div class="points-card" id="pointsCard" role="status" aria-live="polite">
+                <div class="points-label">Gallery</div>
                 <div class="points-value" id="galleryCount">0</div>
             </div>
 
@@ -139,25 +105,17 @@
                     <div class="binary-inline-close">)</div>
                 </div>
                 <div class="binary-preview-footer">
-                    <button id="binaryResetBtn" class="btn btn-warning binary-cancel-btn" onclick="resetPendingOperation()" disabled>
-                        ⟲ Reset
-                    </button>
                     <button id="binaryConfirmBtn" class="btn btn-success binary-confirm-btn" onclick="confirmPendingOperation()" disabled>
                         ✓ Confirm
                     </button>
-                </div>
-            </div>
-
-            <!-- Replaced Target Pattern with Gallery -->
-            <div class="panel-card gallery-card">
-                <h3 class="panel-title">MY GALLERY</h3>
-                <div id="galleryGrid" class="gallery-grid">
-                    <div class="gallery-empty">Your saved creations will appear here</div>
+                    <button id="binaryResetBtn" class="btn btn-warning binary-cancel-btn" onclick="resetPendingOperation()" disabled>
+                        ⟲ Reset
+                    </button>
                 </div>
             </div>
 
             <div class="panel-card pattern-card">
-                <h3 class="panel-title">YOUR CANVAS</h3>
+                <h3 class="panel-title">WORKSPACE</h3>
                 <div class="workspace-canvas" id="workspace"></div>
             </div>
 
@@ -220,7 +178,7 @@
                 </div>
                 <div class="controls-section helpers-section">
                     <div class="helpers-header-row">
-                        <h4 class="panel-subtitle">YOUR HELPERS</h4>
+                        <h3 class="helpers-title">YOUR HELPERS</h3>
                     </div>
                     <div class="section-panel helpers-panel">
                         <div id="favoritesShelf" class="helpers-grid">
@@ -232,9 +190,9 @@
 
             <div class="panel-card program-card">
                 <div class="program-header">
-                    <h4 class="panel-subtitle">STEP SEQUENCE</h4>
-                    <button class="btn btn-primary program-submit" onclick="saveToGallery()" title="Save your creation to the gallery">
-                        <span style="font-size:1.1rem; margin-right:0.2rem;">📷</span> Save to Gallery
+                    <h3>STEP SEQUENCE</h3>
+                    <button class="btn btn-primary program-submit" onclick="saveToGallery()" title="Save your creation to gallery">
+                        Save to Gallery
                     </button>
                 </div>
                 <div class="operations-log" id="operationsLog">
@@ -242,9 +200,40 @@
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Achievement Toast Container -->
-        <div id="achievementContainer"></div>
+    <!-- Free Play Completion Modal -->
+    <div id="freeplayCompletionModal" class="modal" style="display: none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-content" style="max-width: 700px; background: #ffffff; color: #1e293b;">
+            <div class="completion-container">
+                <div class="completion-header" style="background: linear-gradient(135deg, #3b82f6, #2563eb); padding: 2rem; border-radius: 12px 12px 0 0; margin: -2.5rem -3rem 2rem -3rem;">
+                    <h2 style="color: #ffffff; font-size: 1.75rem; margin: 0 0 0.5rem 0;">Free Play Complete!</h2>
+                    <p style="color: #e0f2fe; margin: 0; font-size: 1rem;">Thank you for creating with us!</p>
+                </div>
+                <div class="completion-body">
+                    <div id="creationsGallery" style="margin-bottom: 2rem;">
+                        <h3 style="color: #475569; margin-bottom: 1rem; font-size: 1rem; font-weight: 600;">Your Creations:</h3>
+                        <div id="creationsGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 0.75rem;">
+                            <!-- Pattern thumbnails will be inserted here -->
+                        </div>
+                    </div>
+                    <div class="completion-actions" style="margin: 2rem 0 1.5rem 0;">
+                        <button class="btn btn-primary btn-large" onclick="downloadCombinedData()" style="width: 100%; padding: 1rem; font-size: 1rem; background: #3b82f6; border: none;">
+                            ⬇ Download Complete Data (Task + Free Play)
+                        </button>
+                    </div>
+                    <p style="color: #64748b; font-size: 0.9rem; text-align: center; margin-bottom: 1rem; line-height: 1.5;">
+                        Your complete experiment data is ready for download.
+                    </p>
+                    <div style="background: #f1f5f9; padding: 1rem; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                        <p style="color: #334155; font-size: 0.9rem; margin: 0; text-align: center;">
+                            Please send your data file to: <strong style="color: #1e40af;">s2471381@ed.ac.uk</strong> (Zach)
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script type="module" src="../js/freeplay.js"></script>
