@@ -26,26 +26,184 @@ import {
 appState.inlinePreview = createInlinePreviewState();
 appState.unaryPreviewState = createUnaryPreviewState();
 
-function updatePointsDisplay() {
-    const el = document.getElementById('pointsValue');
+// Free Play State
+let gallery = [];
+let freePlaySession = {
+    startTime: Date.now(),
+    creations: []
+};
+
+// Load data passed from the main experiment
+try {
+    const storedData = localStorage.getItem('experimentData');
+    if (storedData) {
+        allTrialsData = JSON.parse(storedData);
+    }
+    const storedFavorites = localStorage.getItem('experimentFavorites');
+    if (storedFavorites) {
+        favorites = JSON.parse(storedFavorites);
+    }
+} catch (e) {
+    console.error("Failed to load experiment data", e);
+}
+
+function updateGalleryCount() {
+    const el = document.getElementById('galleryCount');
     if (el) {
-        el.textContent = String(totalPoints);
+        el.textContent = String(gallery.length);
     }
 }
 
-function formatPoints(value) {
-    return String(value);
+function renderGallery() {
+    const grid = document.getElementById('galleryGrid');
+    if (!grid) return;
+    
+    grid.innerHTML = '';
+    
+    if (gallery.length === 0) {
+        grid.innerHTML = '<div class="gallery-empty">Your saved creations will appear here</div>';
+        return;
+    }
+
+    gallery.forEach((item, index) => {
+        const div = document.createElement('div');
+        div.className = 'gallery-item';
+        div.title = `Creation #${index + 1}`;
+        
+        const img = document.createElement('img');
+        img.src = item.thumbnail;
+        img.style.width = '100%';
+        img.style.height = '100%';
+        img.style.objectFit = 'contain';
+        
+        div.appendChild(img);
+        grid.appendChild(div);
+    });
 }
 
-function showCompletionModal() {
-    const modal = document.getElementById('completionModal');
-    if (!modal) return;
-    const pointsEl = document.getElementById('finalPointsValue');
-    if (pointsEl) {
-        pointsEl.textContent = String(totalPoints);
-    }
-    modal.style.display = 'flex';
+function saveToGallery() {
+    if (!currentPattern) return;
+    
+    // Generate thumbnail
+    const canvas = document.createElement('canvas');
+    canvas.width = 200;
+    canvas.height = 200;
+    const ctx = canvas.getContext('2d');
+    
+    // Render current pattern to this canvas
+    // We can use the existing renderThumbnail helper or just grab the workspace canvas
+    // But workspace canvas might be DOM based. Let's use renderThumbnail if available or renderPattern
+    // renderThumbnail(currentPattern, canvas); // Assuming this exists and works
+    
+    // Fallback: use html2canvas or just renderPattern to a hidden canvas
+    // Since renderPattern renders to a div, we might need to grab the canvas inside it if it exists
+    // Or use the DSL to render to a canvas context.
+    // For now, let's assume we can get a dataURL from the workspace if it uses canvas, 
+    // OR we use the pattern data to generate a small SVG/Canvas.
+    
+    // Actually, let's use the `renderThumbnail` from modules/patterns.js if it supports canvas
+    // If not, we'll just store the pattern data and render it live in the gallery.
+    
+    // Let's try to capture the workspace.
+    // If workspace is using DOM elements (divs), we can't easily toDataURL.
+    // But we have the pattern data! We can just store that and render it in the gallery.
+    
+    const creation = {
+        id: Date.now(),
+        pattern: JSON.parse(JSON.stringify(currentPattern)),
+        timestamp: Date.now(),
+        thumbnail: null // We will render this in the gallery view
+    };
+    
+    // Create a temporary canvas to generate a dataURL for the thumbnail
+    const thumbCanvas = document.createElement('canvas');
+    thumbCanvas.width = 100;
+    thumbCanvas.height = 100;
+    renderThumbnail(currentPattern, thumbCanvas);
+    creation.thumbnail = thumbCanvas.toDataURL();
+
+    gallery.push(creation);
+    freePlaySession.creations.push(creation);
+    
+    updateGalleryCount();
+    renderGallery();
+    
+    // Show achievement toast
+    showAchievement();
+    
+    showToast('Saved to Gallery!', 'success');
 }
+
+function showAchievement() {
+    const container = document.getElementById('achievementContainer');
+    const toast = document.createElement('div');
+    toast.className = 'achievement-toast';
+    toast.innerHTML = '<span>🎨</span> <span>Masterpiece Saved!</span>';
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 2000);
+}
+
+function finishFreePlay() {
+    // Combine original data with free play data
+    const finalData = {
+        experimentData: allTrialsData,
+        freePlaySession: freePlaySession,
+        gallery: gallery
+    };
+    
+    // Trigger download
+    const jsonString = JSON.stringify(finalData, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    link.download = `pattern_experiment_complete_${timestamp}.json`;
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    showToast('Session Finished & Data Downloaded!', 'success');
+}
+
+function initFreePlay() {
+    // Initialize UI
+    initializePrimitiveIcons();
+    updateGalleryCount();
+    renderFavoritesShelf(); // Render imported favorites
+    
+    // Start with blank workspace
+    resetWorkspace();
+    
+    // Setup event listeners
+    setupTooltips();
+    registerKeyboardShortcuts();
+    
+    console.log("Free Play Mode Initialized");
+}
+
+// Run on initial load
+document.addEventListener('DOMContentLoaded', () => {
+    initializeApp(); // Sets up global state
+    initFreePlay();
+});
+
+Object.assign(globalScope, {
+    initFreePlay,
+    selectBinaryOp,
+    applyTransform,
+    applyPrimitive,
+    confirmPendingOperation,
+    resetPendingOperation,
+    saveToGallery, // Replaces submitAnswer
+    addLastToFavorites,
+    undoLast,
+    resetWorkspace,
+    finishFreePlay
+});
 
 function sanitizeTrialRecord(trial) {
     if (!trial) return null;
@@ -126,23 +284,6 @@ function sanitizeTrialRecord(trial) {
         startedAt: trial.startedAt
     };
 }
-
-function enterFreePlay() {
-    // Save data to localStorage to pass to free play
-    try {
-        localStorage.setItem('experimentData', JSON.stringify(allTrialsData));
-        localStorage.setItem('experimentFavorites', JSON.stringify(favorites));
-    } catch (e) {
-        console.error("Failed to save data for free play", e);
-        showToast("Could not save data for free play. Please download data instead.", "error");
-        return;
-    }
-    
-    // Redirect to free play page
-    window.location.href = 'freeplay.html';
-}
-
-globalScope.enterFreePlay = enterFreePlay;
 
 function downloadExperimentData() {
     const sanitizedTrials = allTrialsData
@@ -2016,20 +2157,18 @@ function registerKeyboardShortcuts() {
 }
 
 // Run on initial load: initialize and auto-start
-document.addEventListener('DOMContentLoaded', () => {
-    initializeApp();
-    startExperiment();
-});
+// (Handled by the initFreePlay call added earlier)
 
+// Export functions to global scope for HTML buttons
 Object.assign(globalScope, {
-    startExperiment,
     selectBinaryOp,
     applyTransform,
     applyPrimitive,
     confirmPendingOperation,
     resetPendingOperation,
-    submitAnswer,
+    saveToGallery,
     addLastToFavorites,
     undoLast,
-    resetWorkspace
+    resetWorkspace,
+    finishFreePlay
 });

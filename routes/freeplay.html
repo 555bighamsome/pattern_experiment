@@ -3,27 +3,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0">
-    <title>Pattern DSL Experiment - Task</title>
+    <title>Pattern DSL - Free Play</title>
     <link rel="stylesheet" href="../css/styles.css">
+    <style>
+        /* Free Play specific styles */
+        .gallery-card {
+            grid-area: target;
+            display: flex;
+            flex-direction: column;
+            background-color: #1e293b;
+            border: 1px solid #334155;
+        }
+        
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 10px;
+            padding: 10px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .gallery-item {
+            aspect-ratio: 1;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            cursor: pointer;
+            position: relative;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .gallery-item:hover {
+            transform: scale(1.05);
+            border-color: #3b82f6;
+        }
+
+        .gallery-item canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 3px;
+        }
+
+        .gallery-empty {
+            grid-column: 1 / -1;
+            text-align: center;
+            color: #64748b;
+            padding: 20px;
+            font-style: italic;
+        }
+
+        .freeplay-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            margin-bottom: 20px;
+        }
+
+        .freeplay-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #e2e8f0;
+        }
+
+        .freeplay-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        /* Achievement animation */
+        @keyframes popIn {
+            0% { transform: scale(0); opacity: 0; }
+            70% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .achievement-toast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(16, 185, 129, 0.9);
+            color: white;
+            padding: 20px 40px;
+            border-radius: 50px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            z-index: 1000;
+            pointer-events: none;
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.27) forwards;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+    </style>
 </head>
 <body class="dark-page">
     <div id="experimentContent">
-        <div class="progress-bar">
-            <div class="progress-info">
-                Progress: <span id="currentTrial">1</span> / <span id="totalTrials">20</span>
-            </div>
-            <div class="progress-track">
-                <div class="progress-fill" id="progressFill" style="width: 5%"></div>
-            </div>
-            <div class="progress-info">
-                <span id="percentComplete">6%</span> Complete
+        <div class="freeplay-header">
+            <div class="freeplay-title">✨ Creative Mode</div>
+            <div class="freeplay-actions">
+                <button class="btn btn-warning" onclick="finishFreePlay()">
+                    Finish Session & Download Data
+                </button>
             </div>
         </div>
 
         <div class="content-area">
-            <div class="points-card" id="pointsCard" role="status" aria-live="polite">
-                <div class="points-label">Points</div>
-                <div class="points-value" id="pointsValue">0</div>
+            <!-- Reusing points card for session stats -->
+            <div class="points-card" id="statsCard">
+                <div class="points-label">Creations</div>
+                <div class="points-value" id="galleryCount">0</div>
             </div>
 
             <div id="binaryPreviewPanel" class="panel-card preview-card binary-preview-panel">
@@ -54,13 +148,16 @@
                 </div>
             </div>
 
-            <div class="panel-card target-card">
-                <h3 class="panel-title"><span id="targetTitleLabel">TARGET PATTERN</span> <span id="targetNumber">1</span></h3>
-                <div id="targetPattern" class="pattern-view"></div>
+            <!-- Replaced Target Pattern with Gallery -->
+            <div class="panel-card gallery-card">
+                <h3 class="panel-title">MY GALLERY</h3>
+                <div id="galleryGrid" class="gallery-grid">
+                    <div class="gallery-empty">Your saved creations will appear here</div>
+                </div>
             </div>
 
             <div class="panel-card pattern-card">
-                <h3 class="panel-title">YOUR PATTERN</h3>
+                <h3 class="panel-title">YOUR CANVAS</h3>
                 <div class="workspace-canvas" id="workspace"></div>
             </div>
 
@@ -136,8 +233,8 @@
             <div class="panel-card program-card">
                 <div class="program-header">
                     <h4 class="panel-subtitle">STEP SEQUENCE</h4>
-                    <button class="btn btn-success program-submit" onclick="submitAnswer()" title="Submit your answer and proceed to next pattern">
-                        <span style="font-size:1.1rem; margin-right:0.2rem;">✓</span> Submit
+                    <button class="btn btn-primary program-submit" onclick="saveToGallery()" title="Save your creation to the gallery">
+                        <span style="font-size:1.1rem; margin-right:0.2rem;">📷</span> Save to Gallery
                     </button>
                 </div>
                 <div class="operations-log" id="operationsLog">
@@ -146,57 +243,10 @@
             </div>
         </div>
 
-        <!-- Feedback Modal for Submit Results -->
-        <div class="feedback-modal" id="feedbackModal">
-            <div class="feedback-content">
-                <div class="feedback-icon" id="feedbackIcon"></div>
-                <div class="feedback-message" id="feedbackMessage"></div>
-            </div>
-        </div>
-
-        <!-- Completion Modal -->
-        <div class="completion-modal" id="completionModal" style="display: none;">
-            <div class="completion-content">
-                <div class="completion-header">
-                    <h2>🎉 Experiment Complete!</h2>
-                </div>
-                <div class="completion-body">
-                    <p class="completion-message">
-                        Thank you for completing the experiment!
-                    </p>
-                    <div class="completion-stats">
-                        <div class="stat-item">
-                            <span class="stat-label">Final Score:</span>
-                            <span class="stat-value">
-                                <span id="finalPointsValue">0</span> / <span id="finalPointsMax">20</span> points
-                            </span>
-                        </div>
-                    </div>
-                    <div class="completion-actions">
-                        <button class="btn btn-success btn-large" onclick="enterFreePlay()" style="margin-bottom: 10px;">
-                            <span style="font-size: 1.2rem; margin-right: 0.5rem;">✨</span>
-                            Enter Creative Mode (Free Play)
-                        </button>
-                        <div style="margin: 10px 0; color: #94a3b8;">— OR —</div>
-                        <button class="btn btn-primary btn-large" id="downloadDataBtn" onclick="downloadExperimentData()">
-                            <span style="font-size: 1.2rem; margin-right: 0.5rem;">⬇</span>
-                            Finish & Download Data
-                        </button>
-                    </div>
-                    <p class="completion-note">
-                        Your data has been collected for research purposes. Click the button above to download a copy.
-                    </p>
-                    <p class="completion-contact">
-                        Please send your data file to: <strong>s2471381@ed.ac.uk</strong> (Zach)
-                    </p>
-                    <p class="completion-feedback">
-                        We welcome any feedback or comments about this experiment!
-                    </p>
-                </div>
-            </div>
-        </div>
+        <!-- Achievement Toast Container -->
+        <div id="achievementContainer"></div>
     </div>
 
-    <script type="module" src="../js/task.js"></script>
+    <script type="module" src="../js/freeplay.js"></script>
 </body>
 </html>
