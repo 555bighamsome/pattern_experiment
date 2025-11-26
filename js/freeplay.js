@@ -1772,7 +1772,13 @@ function updateInlinePreviewPanel() {
         const opConfig = opMessages[pendingBinaryOp] || opMessages.add;
         title.textContent = opConfig.hint;
         if (header) header.classList.toggle('is-hidden', !title.textContent.trim());
-        if (opLabel) opLabel.textContent = `${pendingBinaryOp}(`;
+        
+        // Use abbreviated operation name
+        const opAbbrev = getOperationAbbreviation(pendingBinaryOp);
+        if (opLabel) {
+            opLabel.textContent = `${opAbbrev}(`;
+            opLabel.style.textAlign = 'center';
+        }
         
         if (aBox) {
             aBox.innerHTML = '';
@@ -1812,7 +1818,13 @@ function updateInlinePreviewPanel() {
         const config = unaryMessages[pendingUnaryOp] || { hint: 'Unary transform preview.' };
         title.textContent = config.hint;
         if (header) header.classList.toggle('is-hidden', !title.textContent.trim());
-        if (unaryOpLabel) unaryOpLabel.textContent = `${pendingUnaryOp}(`;
+        
+        // Use abbreviated operation name
+        const opAbbrev = getOperationAbbreviation(pendingUnaryOp);
+        if (unaryOpLabel) {
+            unaryOpLabel.textContent = `${opAbbrev}(`;
+            unaryOpLabel.style.textAlign = 'center';
+        }
         
         if (unaryOperandBox) {
             unaryOperandBox.innerHTML = '';
