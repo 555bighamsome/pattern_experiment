@@ -44,6 +44,10 @@ function showCompletionModal() {
     if (pointsEl) {
         pointsEl.textContent = String(totalPoints);
     }
+    const pointsMaxEl = document.getElementById('finalPointsMax');
+    if (pointsMaxEl) {
+        pointsMaxEl.textContent = String(POINTS_MAX);
+    }
     modal.style.display = 'flex';
 }
 
@@ -2007,7 +2011,7 @@ function submitAnswer() {
             lines.push(`Score: ${totalDisplay}/${POINTS_MAX}`);
             message.textContent = lines.join('\n');
         } else {
-            icon.textContent = '✗';
+            icon.textContent = '';
             icon.className = 'feedback-icon error';
             const lines = [
                 'Not quite right. 0 points this round.',

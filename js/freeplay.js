@@ -142,32 +142,484 @@ function saveToGallery() {
         return;
     }
     
-    const gallery = getGalleryFromStorage();
-    const totalOps = operationsHistory.length;
+    // Show naming dialog instead of prompt
+    showNamingDialog();
+}
+
+function showNamingDialog() {
+    // Create overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.75);
+        backdrop-filter: blur(4px);
+        z-index: 2000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        animation: fadeIn 0.2s ease-out;
+    `;
     
-    const creation = {
-        id: Date.now(),
-        pattern: JSON.parse(JSON.stringify(currentPattern)),
-        operations: operationsHistory.map(h => h.operation),
-        operationsHistory: JSON.parse(JSON.stringify(operationsHistory)), // Full history
-        totalOperations: totalOps,
-        timestamp: new Date().toISOString(),
-        createdAt: Date.now(),
-        sessionId: sessionRecord ? sessionRecord.sessionId : null // Link to session
+    // Create dialog
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        max-width: 500px;
+        width: 90%;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        animation: slideUp 0.3s ease-out;
+    `;
+    
+    dialog.innerHTML = `
+        <h3 style="margin: 0 0 1rem 0; color: #1e293b; font-size: 1.5rem; font-weight: 600;">
+            Save Pattern
+        </h3>
+        <p style="margin: 0 0 1.5rem 0; color: #64748b; font-size: 0.95rem;">
+            Give your pattern a name to easily find it later (optional)
+        </p>
+        <input 
+            type="text" 
+            id="patternNameInput" 
+            placeholder="e.g., My Flower Pattern" 
+            style="
+                width: 100%;
+                padding: 0.75rem 1rem;
+                border: 2px solid #e2e8f0;
+                border-radius: 8px;
+                font-size: 1rem;
+                outline: none;
+                transition: border-color 0.2s;
+                box-sizing: border-box;
+            "
+            maxlength="50"
+        />
+        <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem; justify-content: flex-end;">
+            <button 
+                id="cancelSaveBtn"
+                style="
+                    padding: 0.75rem 1.5rem;
+                    border: 2px solid #e2e8f0;
+                    background: white;
+                    color: #64748b;
+                    border-radius: 8px;
+                    font-size: 1rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                "
+            >
+                Cancel
+            </button>
+            <button 
+                id="confirmSaveBtn"
+                style="
+                    padding: 0.75rem 1.5rem;
+                    border: none;
+                    background: linear-gradient(135deg, #3b82f6, #2563eb);
+                    color: white;
+                    border-radius: 8px;
+                    font-size: 1rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3);
+                "
+            >
+                Save to Gallery
+            </button>
+        </div>
+    `;
+    
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    
+    // Focus input
+    const input = document.getElementById('patternNameInput');
+    setTimeout(() => input.focus(), 100);
+    
+    // Handle save
+    const confirmBtn = document.getElementById('confirmSaveBtn');
+    const cancelBtn = document.getElementById('cancelSaveBtn');
+    
+    const savePattern = () => {
+        const patternName = input.value.trim();
+        
+        const gallery = getGalleryFromStorage();
+        const totalOps = operationsHistory.length;
+        
+        const creation = {
+            id: Date.now(),
+            name: patternName || null,
+            pattern: JSON.parse(JSON.stringify(currentPattern)),
+            operations: operationsHistory.map(h => h.operation),
+            operationsHistory: JSON.parse(JSON.stringify(operationsHistory)),
+            totalOperations: totalOps,
+            timestamp: new Date().toISOString(),
+            createdAt: Date.now(),
+            sessionId: sessionRecord ? sessionRecord.sessionId : null
+        };
+        
+        gallery.push(creation);
+        saveGalleryToStorage(gallery);
+        updateGalleryCount();
+        saveSessionRecord();
+        
+        const nameMsg = patternName ? ` "${patternName}"` : '';
+        showToast(`Saved${nameMsg} to gallery!`, 'success', 2000);
+        
+        document.body.removeChild(overlay);
     };
     
-    gallery.push(creation);
-    saveGalleryToStorage(gallery);
-    updateGalleryCount();
+    const closeDialog = () => {
+        document.body.removeChild(overlay);
+    };
     
-    // Save session record with this pattern
-    saveSessionRecord();
+    confirmBtn.addEventListener('click', savePattern);
+    cancelBtn.addEventListener('click', closeDialog);
     
-    showToast(`Saved to gallery! (${totalOps} operations)`, 'success', 2000);
+    // Enter to save, Escape to cancel
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            savePattern();
+        } else if (e.key === 'Escape') {
+            closeDialog();
+        }
+    });
+    
+    // Click outside to cancel
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            closeDialog();
+        }
+    });
 }
 
 function viewGallery() {
-    window.location.href = 'gallery.html';
+    // Show gallery in modal instead of navigating away
+    showGalleryModal();
+}
+
+function showGalleryModal() {
+    const modal = document.getElementById('galleryModal');
+    if (!modal) {
+        // Create modal if it doesn't exist
+        createGalleryModal();
+    }
+    
+    // Load and display gallery items
+    const gallery = getGalleryFromStorage();
+    const galleryGrid = document.getElementById('galleryModalGrid');
+    const emptyMessage = document.getElementById('galleryModalEmpty');
+    const countEl = document.getElementById('galleryModalCount');
+    
+    if (countEl) {
+        countEl.textContent = `${gallery.length} pattern${gallery.length !== 1 ? 's' : ''} saved`;
+    }
+    
+    if (gallery.length === 0) {
+        if (galleryGrid) galleryGrid.style.display = 'none';
+        if (emptyMessage) emptyMessage.style.display = 'block';
+    } else {
+        if (galleryGrid) galleryGrid.style.display = 'grid';
+        if (emptyMessage) emptyMessage.style.display = 'none';
+        
+        galleryGrid.innerHTML = '';
+        gallery.forEach((item, index) => {
+            const card = createGalleryCard(item, index);
+            galleryGrid.appendChild(card);
+        });
+    }
+    
+    document.getElementById('galleryModal').style.display = 'flex';
+}
+
+function createGalleryCard(item, index) {
+    const card = document.createElement('div');
+    card.style.cssText = `
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    `;
+    
+    const canvasWrap = document.createElement('div');
+    canvasWrap.style.cssText = `
+        background: white;
+        padding: 2rem;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 200px;
+    `;
+    
+    // Create canvas for grid-style rendering
+    const canvas = document.createElement('canvas');
+    canvas.width = SIZE * 30;  // 30px per cell
+    canvas.height = SIZE * 30;
+    canvas.style.cssText = 'width: 240px; height: 240px; border: 2px solid #000;';
+    
+    const ctx = canvas.getContext('2d');
+    const cellSize = 30;
+    const pattern = item.pattern;
+    
+    // Draw grid lines
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= SIZE; i++) {
+        // Vertical lines
+        ctx.beginPath();
+        ctx.moveTo(i * cellSize, 0);
+        ctx.lineTo(i * cellSize, SIZE * cellSize);
+        ctx.stroke();
+        
+        // Horizontal lines
+        ctx.beginPath();
+        ctx.moveTo(0, i * cellSize);
+        ctx.lineTo(SIZE * cellSize, i * cellSize);
+        ctx.stroke();
+    }
+    
+    // Fill cells
+    ctx.fillStyle = '#1e3a8a';
+    for (let r = 0; r < SIZE; r++) {
+        for (let c = 0; c < SIZE; c++) {
+            if (pattern[r] && pattern[r][c]) {
+                ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+            }
+        }
+    }
+    
+    canvasWrap.appendChild(canvas);
+    card.appendChild(canvasWrap);
+    
+    const info = document.createElement('div');
+    info.style.cssText = 'padding: 1rem; color: #64748b; font-size: 0.85rem; border-bottom: 1px solid #f1f5f9; text-align: center;';
+    
+    // Display name if exists, otherwise show Pattern #
+    const displayName = item.name ? item.name : `Pattern #${index + 1}`;
+    const nameStyle = item.name ? 'color: #1e3a8a; font-size: 1rem;' : 'color: #475569;';
+    
+    info.innerHTML = `
+        <div style="font-weight: 600; ${nameStyle} margin-bottom: 0.5rem;">${displayName}</div>
+        <div style="color: #94a3b8; font-size: 0.8rem;">${new Date(item.timestamp).toLocaleString()}</div>
+    `;
+    card.appendChild(info);
+    
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display: flex; gap: 0.5rem; padding: 0.75rem; background: #f8fafc;';
+    
+    const renameBtn = document.createElement('button');
+    renameBtn.className = 'btn';
+    renameBtn.textContent = 'Rename';
+    renameBtn.style.cssText = 'flex: 1; padding: 0.5rem; font-size: 0.85rem; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer;';
+    renameBtn.onclick = () => {
+        showRenameDialog(index, item.name || '');
+    };
+    
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'btn btn-danger';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.style.cssText = 'flex: 1; padding: 0.5rem; font-size: 0.85rem; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer;';
+    deleteBtn.onclick = () => {
+        if (confirm('Delete this pattern?')) {
+            deleteGalleryItem(index);
+            showGalleryModal(); // Refresh
+        }
+    };
+    
+    actions.appendChild(renameBtn);
+    actions.appendChild(deleteBtn);
+    card.appendChild(actions);
+    
+    return card;
+}
+
+function showRenameDialog(index, currentName) {
+    // Create overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.75);
+        backdrop-filter: blur(4px);
+        z-index: 3500;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    `;
+    
+    // Create dialog
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+        background: white;
+        border-radius: 16px;
+        padding: 2rem;
+        max-width: 500px;
+        width: 90%;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    `;
+    
+    dialog.innerHTML = `
+        <h3 style="margin: 0 0 1rem 0; color: #1e293b; font-size: 1.5rem; font-weight: 600;">
+            Rename Pattern
+        </h3>
+        <p style="margin: 0 0 1.5rem 0; color: #64748b; font-size: 0.95rem;">
+            Enter a new name for this pattern
+        </p>
+        <input 
+            type="text" 
+            id="renameInput" 
+            value="${currentName}"
+            placeholder="Pattern name" 
+            style="
+                width: 100%;
+                padding: 0.75rem 1rem;
+                border: 2px solid #e2e8f0;
+                border-radius: 8px;
+                font-size: 1rem;
+                outline: none;
+                box-sizing: border-box;
+            "
+            maxlength="50"
+        />
+        <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem; justify-content: flex-end;">
+            <button 
+                id="cancelRenameBtn"
+                style="
+                    padding: 0.75rem 1.5rem;
+                    border: 2px solid #e2e8f0;
+                    background: white;
+                    color: #64748b;
+                    border-radius: 8px;
+                    font-size: 1rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                "
+            >
+                Cancel
+            </button>
+            <button 
+                id="confirmRenameBtn"
+                style="
+                    padding: 0.75rem 1.5rem;
+                    border: none;
+                    background: linear-gradient(135deg, #3b82f6, #2563eb);
+                    color: white;
+                    border-radius: 8px;
+                    font-size: 1rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                "
+            >
+                Rename
+            </button>
+        </div>
+    `;
+    
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    
+    const input = document.getElementById('renameInput');
+    setTimeout(() => {
+        input.focus();
+        input.select();
+    }, 100);
+    
+    const confirmBtn = document.getElementById('confirmRenameBtn');
+    const cancelBtn = document.getElementById('cancelRenameBtn');
+    
+    const doRename = () => {
+        const newName = input.value.trim();
+        renameGalleryItem(index, newName);
+        showGalleryModal();
+        document.body.removeChild(overlay);
+    };
+    
+    const closeDialog = () => {
+        document.body.removeChild(overlay);
+    };
+    
+    confirmBtn.addEventListener('click', doRename);
+    cancelBtn.addEventListener('click', closeDialog);
+    
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            doRename();
+        } else if (e.key === 'Escape') {
+            closeDialog();
+        }
+    });
+    
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+            closeDialog();
+        }
+    });
+}
+
+function renameGalleryItem(index, newName) {
+    const gallery = getGalleryFromStorage();
+    if (gallery[index]) {
+        gallery[index].name = newName || null;
+        localStorage.setItem('patternGallery', JSON.stringify(gallery));
+        showToast('Pattern renamed!', 'success', 1500);
+    }
+}
+
+function deleteGalleryItem(index) {
+    const gallery = getGalleryFromStorage();
+    gallery.splice(index, 1);
+    localStorage.setItem('patternGallery', JSON.stringify(gallery));
+    updateGalleryCount();
+}
+
+function closeGalleryModal() {
+    document.getElementById('galleryModal').style.display = 'none';
+}
+
+// Expose to global scope for onclick handler
+window.closeGalleryModal = closeGalleryModal;
+
+function createGalleryModal() {
+    const modal = document.createElement('div');
+    modal.id = 'galleryModal';
+    modal.className = 'modal';
+    modal.style.cssText = 'display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); z-index: 3000; align-items: center; justify-content: center; overflow-y: auto; padding: 2rem;';
+    
+    // Close when clicking on backdrop
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeGalleryModal();
+        }
+    });
+    
+    modal.innerHTML = `
+        <div style="background: #f8fafc; border-radius: 12px; max-width: 1200px; width: 100%; max-height: 90vh; overflow-y: auto; position: relative;">
+            <div style="position: sticky; top: 0; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; padding: 2rem; z-index: 1; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <h2 style="margin: 0 0 0.5rem 0; font-size: 2rem;">Pattern Gallery</h2>
+                <p id="galleryModalCount" style="margin: 0; opacity: 0.95;">0 patterns saved</p>
+            </div>
+            <div style="padding: 2rem;">
+                <div id="galleryModalGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem;">
+                </div>
+                <div id="galleryModalEmpty" style="display: none; text-align: center; padding: 4rem 2rem; color: #64748b;">
+                    <h3 style="color: #1e293b; font-size: 1.5rem; margin-bottom: 0.5rem;">No Patterns Yet</h3>
+                    <p>Save patterns from your workspace to see them here!</p>
+                </div>
+            </div>
+            <div style="position: sticky; bottom: 0; background: white; padding: 1.5rem 2rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: center; box-shadow: 0 -2px 8px rgba(0,0,0,0.05);">
+                <button onclick="closeGalleryModal()" class="btn btn-primary" style="padding: 0.75rem 2rem; background: #3b82f6; color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer;">
+                    Close Gallery
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
 }
 
 function clearWorkspace() {
@@ -1602,34 +2054,75 @@ function endFreePlayMode() {
         } else {
             gallery.forEach((item, i) => {
                 const card = document.createElement('div');
-                card.style.cssText = 'background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 8px; padding: 0.5rem; transition: all 0.2s;';
+                card.style.cssText = `
+                    background: white;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 12px;
+                    overflow: hidden;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                `;
                 
-                const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                svg.setAttribute('viewBox', `0 0 ${SIZE * 10} ${SIZE * 10}`);
-                svg.style.cssText = 'width: 100%; height: auto; background: #ffffff; border-radius: 4px;';
+                // Canvas container
+                const canvasWrap = document.createElement('div');
+                canvasWrap.style.cssText = `
+                    background: white;
+                    padding: 1.5rem;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    min-height: 150px;
+                `;
                 
-                // item.pattern is already a 2D array (grid)
+                // Create canvas for grid-style rendering
+                const canvas = document.createElement('canvas');
+                canvas.width = SIZE * 20;  // 20px per cell (smaller for completion page)
+                canvas.height = SIZE * 20;
+                canvas.style.cssText = 'width: 100%; max-width: 150px; height: auto; aspect-ratio: 1; border: 2px solid #000;';
+                
+                const ctx = canvas.getContext('2d');
+                const cellSize = 20;
                 const pattern = item.pattern;
+                
+                // Draw grid lines
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 1;
+                for (let i = 0; i <= SIZE; i++) {
+                    // Vertical lines
+                    ctx.beginPath();
+                    ctx.moveTo(i * cellSize, 0);
+                    ctx.lineTo(i * cellSize, SIZE * cellSize);
+                    ctx.stroke();
+                    
+                    // Horizontal lines
+                    ctx.beginPath();
+                    ctx.moveTo(0, i * cellSize);
+                    ctx.lineTo(SIZE * cellSize, i * cellSize);
+                    ctx.stroke();
+                }
+                
+                // Fill cells
+                ctx.fillStyle = '#1e3a8a';
                 for (let r = 0; r < SIZE; r++) {
                     for (let c = 0; c < SIZE; c++) {
                         if (pattern[r] && pattern[r][c]) {
-                            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                            rect.setAttribute('x', c * 10);
-                            rect.setAttribute('y', r * 10);
-                            rect.setAttribute('width', 10);
-                            rect.setAttribute('height', 10);
-                            rect.setAttribute('fill', '#1e3a8a');
-                            svg.appendChild(rect);
+                            ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
                         }
                     }
                 }
                 
-                card.appendChild(svg);
+                canvasWrap.appendChild(canvas);
+                card.appendChild(canvasWrap);
                 
-                const label = document.createElement('div');
-                label.style.cssText = 'font-size: 0.7rem; color: #64748b; text-align: center; margin-top: 0.4rem; font-weight: 500;';
-                label.textContent = `#${i + 1}`;
-                card.appendChild(label);
+                // Info section
+                const info = document.createElement('div');
+                info.style.cssText = 'padding: 0.75rem; color: #64748b; font-size: 0.85rem; text-align: center; border-top: 1px solid #f1f5f9;';
+                
+                // Display name if exists, otherwise show Pattern #
+                const displayName = item.name ? item.name : `#${i + 1}`;
+                const nameStyle = item.name ? 'color: #1e3a8a; font-size: 0.95rem;' : 'color: #475569;';
+                
+                info.innerHTML = `<div style="font-weight: 600; ${nameStyle}">${displayName}</div>`;
+                card.appendChild(info);
                 
                 grid.appendChild(card);
             });
