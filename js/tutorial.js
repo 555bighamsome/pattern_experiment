@@ -1237,15 +1237,9 @@ function updateAllButtonStates() {
     const unaryButtons = document.querySelectorAll('.unary-btn');
     unaryButtons.forEach(btn => {
         const op = btn.getAttribute('data-op');
-        if (isBinaryMode) {
-            btn.classList.add('disabled');
-            btn.classList.remove('enabled');
-            btn.title = 'Unary operations are disabled while a binary operation is active';
-        } else {
-            btn.classList.remove('disabled');
-            btn.classList.add('enabled');
-            btn.title = btn.getAttribute('data-original-title') || '';
-        }
+        btn.classList.remove('disabled');
+        btn.classList.add('enabled');
+        btn.title = btn.getAttribute('data-original-title') || '';
 
         if (pendingUnaryOp === op) {
             btn.classList.add('selected');
@@ -1269,15 +1263,9 @@ function updateAllButtonStates() {
             btn.title = btn.getAttribute('data-original-title') || '';
         } else {
             btn.classList.remove('selected');
-            if (isUnaryMode) {
-                btn.classList.add('disabled');
-                btn.classList.remove('enabled');
-                btn.title = 'Binary operations are disabled while a unary operation is active';
-            } else {
-                btn.classList.remove('disabled');
-                btn.classList.add('enabled');
-                btn.title = btn.getAttribute('data-original-title') || '';
-            }
+            btn.classList.remove('disabled');
+            btn.classList.add('enabled');
+            btn.title = btn.getAttribute('data-original-title') || '';
         }
     });
     
@@ -1707,7 +1695,13 @@ function updateInlinePreviewPanel() {
         const opConfig = opMessages[pendingBinaryOp] || opMessages.add;
         title.textContent = opConfig.hint;
         if (header) header.classList.toggle('is-hidden', !title.textContent.trim());
-        if (opLabel) opLabel.textContent = `${pendingBinaryOp}(`;
+        
+        // Use abbreviated operation name
+        const opAbbrev = getOperationAbbreviation(pendingBinaryOp);
+        if (opLabel) {
+            opLabel.textContent = `${opAbbrev}(`;
+            opLabel.style.textAlign = 'center';
+        }
 
         if (aBox) {
             aBox.innerHTML = '';
@@ -1759,7 +1753,13 @@ function updateInlinePreviewPanel() {
         const config = unaryMessages[pendingUnaryOp] || { label: pendingUnaryOp, hint: 'Unary transform preview.' };
         title.textContent = config.hint;
         if (header) header.classList.toggle('is-hidden', !title.textContent.trim());
-        if (unaryOpLabel) unaryOpLabel.textContent = `${pendingUnaryOp}(`;
+        
+        // Use abbreviated operation name
+        const opAbbrev = getOperationAbbreviation(pendingUnaryOp);
+        if (unaryOpLabel) {
+            unaryOpLabel.textContent = `${opAbbrev}(`;
+            unaryOpLabel.style.textAlign = 'center';
+        }
 
         if (unaryOperandBox) {
             unaryOperandBox.innerHTML = '';
