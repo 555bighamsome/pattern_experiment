@@ -2255,6 +2255,7 @@ const tutorialSteps = [
                 <li>Click it to save that step as a helper</li>
                 <li>The helper appears in <strong>"YOUR HELPERS"</strong> section</li>
                 <li>Click helpers to use them as operands (just like primitives!)</li>
+                <li>You can remove helpers anytime by clicking the <strong>× button</strong> on the helper</li>
             </ul>
             <p><strong>Try it now:</strong> Click the + button on any step below to add it to helpers.</p>
             <p><em>This is optional but saves time when patterns repeat.</em></p>`,
@@ -2271,10 +2272,28 @@ const tutorialSteps = [
         }
     },
     {
+        title: "Practice: Remove a Helper",
+        content: `<p>You can remove helpers you no longer need!</p>
+            <p><strong>Task:</strong> Click the <strong>× button</strong> on any helper to remove it.</p>
+            <p>This helps keep your helpers section organized with only the patterns you're currently using.</p>
+            <p><em style="color: #fbbf24;">"Next" appears after you remove a helper.</em></p>`,
+        onEnter: function() {
+            removeTutorialHighlight();
+            this._initialFavoritesCount = favorites.length;
+            highlightTutorialElement('.helpers-section');
+        },
+        waitForAction: true,
+        checkCompletion: function() {
+            // Check if user has removed at least one favorite
+            return favorites.length < (this._initialFavoritesCount || 0);
+        }
+    },
+    {
         title: "Practice: Use a Helper",
         content: `<p>Now let's practice using your saved helper!</p>
             <p><strong>Task:</strong> Use a helper as an operand in an operation.</p>
             <ol>
+                <li>Add another helper first if you removed all of them</li>
                 <li>Select any operation (like <strong>add</strong> or <strong>flip_h</strong>)</li>
                 <li>Click your helper in <strong>"YOUR HELPERS"</strong> section to use it</li>
                 <li>Complete the operation and confirm</li>
