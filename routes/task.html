@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0">
     <title>Pattern DSL Experiment - Task</title>
     <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/brush-styles.css">
 </head>
 <body class="dark-page">
     <div id="experimentContent">
@@ -75,8 +76,8 @@
                         <button id="bin-subtract" data-op="subtract" class="transform-btn binary-btn" onclick="selectBinaryOp('subtract')" title="Subtract one pattern from another">
                             <span class="btn-text">subtract</span>
                         </button>
-                        <button id="bin-union" data-op="union" class="transform-btn binary-btn" onclick="selectBinaryOp('union')" title="Union/AND two patterns">
-                            <span class="btn-text">union</span>
+                        <button id="bin-overlap" data-op="overlap" class="transform-btn binary-btn" onclick="selectBinaryOp('overlap')" title="Overlap/AND two patterns">
+                            <span class="btn-text">overlap</span>
                         </button>
                         <button class="transform-btn unary-btn" data-op="invert" onclick="applyTransform('invert')" title="Invert pattern (flip black/white)">
                             <span class="btn-text">invert</span>
@@ -97,34 +98,17 @@
                     </div>
                 </div>
                 <div class="controls-section primitives-section">
-                    <h4 class="panel-subtitle">PRIMITIVES</h4>
+                    <h4 class="panel-subtitle">DRAW UP <span id="pointCounter" class="point-counter">0/10</span></h4>
                     <div class="section-panel">
-                    <div class="primitives-grid-inline">
-                        <button class="primitive-btn" data-op="blank" onclick="applyPrimitive('blank')" title="Create blank pattern">
-                            <span class="btn-icon"></span>
-                        </button>
-                        <button class="primitive-btn" data-op="line_horizontal" onclick="applyPrimitive('line_horizontal')" title="Horizontal line">
-                            <span class="btn-icon"></span>
-                        </button>
-                        <button class="primitive-btn" data-op="line_vertical" onclick="applyPrimitive('line_vertical')" title="Vertical line">
-                            <span class="btn-icon"></span>
-                        </button>
-                        <button class="primitive-btn" data-op="diagonal" onclick="applyPrimitive('diagonal')" title="Diagonal line">
-                            <span class="btn-icon"></span>
-                        </button>
-                        <button class="primitive-btn" data-op="square" onclick="applyPrimitive('square')" title="Square shape">
-                            <span class="btn-icon"></span>
-                        </button>
-                        <button class="primitive-btn" data-op="triangle" onclick="applyPrimitive('triangle')" title="Triangle shape">
-                            <span class="btn-icon"></span>
-                        </button>
-                    </div>
+                        <div id="brushCanvas" class="draw-up-canvas"></div>
+                        <div class="draw-up-actions">
+                            <button class="draw-up-btn" onclick="clearBrush()" title="Clear">⟲</button>
+                            <button class="draw-up-btn draw-up-apply" onclick="applyBrushPattern()" title="Apply">✓</button>
+                        </div>
                     </div>
                 </div>
                 <div class="controls-section helpers-section">
-                    <div class="helpers-header-row">
-                        <h3 class="helpers-title">YOUR HELPERS</h3>
-                    </div>
+                    <h4 class="panel-subtitle">YOUR HELPERS</h4>
                     <div class="section-panel helpers-panel">
                         <div id="favoritesShelf" class="helpers-grid">
                             <div class="helpers-empty">Favorite a step to reuse it here.</div>

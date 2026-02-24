@@ -7,13 +7,13 @@ import {
 } from './modules/state.js';
 import { showToast } from './modules/toast.js';
 import {
-    geomDSL,
+    brushSystem,
     transDSL,
     getOperationAbbreviation,
     formatOperationText,
     renderPattern,
     renderThumbnail,
-    initializePrimitiveIcons
+    initializeBrushInterface
 } from './modules/patterns.js';
 import {
     testCases,
@@ -657,7 +657,7 @@ function resolveUnaryOperandSource() {
     return {
         type: 'workspace',
         index: null,
-        pattern: geomDSL.blank(),
+        pattern: brushSystem.blank(),
         origin: 'workspace'
     };
 }
@@ -708,7 +708,7 @@ function loadTrial(index) {
     // clear workspace and workflow/log for the new trial
     resetWorkspace();
     // start with a blank canvas in the workspace by default (do not log blank)
-    currentPattern = geomDSL.blank();
+    currentPattern = brushSystem.blank();
     renderPattern(currentPattern, 'workspace', {
         diffMode: pendingBinaryOp,
         basePattern: previewBackupPattern?.pattern
@@ -786,44 +786,47 @@ function logButtonClick(buttonType, operationName, context = {}) {
     });
 }
 
-function applyPrimitive(name) {
-    // Log button click for cognitive analysis
-    logButtonClick('primitive', name, {
-        pendingBinary: !!pendingBinaryOp,
-        pendingUnary: !!pendingUnaryOp
-    });
-
-    // Primitives provide operands for pending operations (binary or unary)
-    if (!pendingBinaryOp && !pendingUnaryOp) {
-        showToast('⚠️ Please select an operation (binary or unary) before choosing a primitive.', 'warning');
+// 应用自定义模式（来自画笔）
+function applyCustomPattern(pattern) {
+    const pointCount = brushSystem.countPoints(pattern);
+    if (pointCount > 10) {
         return;
     }
 
-    const pat = geomDSL[name]();
+    // Log button click for cognitive analysis
+    logButtonClick('brush', `${pointCount}pts`, {
+        pendingBinary: !!pendingBinaryOp,
+        pendingUnary: !!pendingUnaryOp,
+        pointCount: pointCount
+    });
+
+    // Brush patterns provide operands for pending operations (binary or unary)
+    if (!pendingBinaryOp && !pendingUnaryOp) {
+        showToast('Select an operation first', 'warning');
+        return;
+    }
 
     if (pendingBinaryOp) {
         const { aSource, bSource } = resolveBinaryOperandSources();
-        // If two operands are already selected, do not replace them.
         if (aSource && bSource) {
-            showToast('Two operands are already selected. Reset or confirm the current operation before adding another.', 'warning');
             return;
         }
 
         if (!aSource) {
-            inlinePreview.aPattern = pat;
+            inlinePreview.aPattern = pattern;
             inlinePreview.aIndex = null;
         } else if (!bSource) {
-            inlinePreview.bPattern = pat;
+            inlinePreview.bPattern = pattern;
             inlinePreview.bIndex = null;
         }
         createBinaryPreview();
     } else if (pendingUnaryOp) {
-        console.debug('applyPrimitive: setting unary operand from primitive', name);
+        console.debug('applyCustomPattern: setting unary operand from brush pattern');
         unaryPreviewState.source = {
-            type: 'primitive',
+            type: 'brush',
             index: null,
-            pattern: pat,
-            origin: 'primitive'
+            pattern: pattern,
+            origin: 'brush'
         };
         // explicit operand provided
         unaryModeJustEntered = false;
@@ -999,7 +1002,7 @@ function renderWorkflow() {
         entry.onclick = () => onWorkflowClick(idx);
 
         // If operation is in function format like 'add(selected)' or 'add(W1,W2)'
-        const binaryMatch = opText.match(/^(add|subtract|union)\((.*)\)$/);
+        const binaryMatch = opText.match(/^(add|subtract|overlap)\((.*)\)$/);
         const unaryOps = new Set(['invert', 'reflect_horizontal', 'reflect_vertical', 'reflect_diag']);
         const isUnary = item.opFn && unaryOps.has(item.opFn);
         if (binaryMatch) {
@@ -1350,7 +1353,7 @@ function updateAllButtonStates() {
     
     // === BINARY BUTTONS ===
     // Always enabled - user can decide to do binary operations at any time
-    const bins = ['add','subtract','union'];
+    const bins = ['add','subtract','overlap'];
     bins.forEach(name => {
         const btn = document.getElementById('bin-' + name);
         if (!btn) return;
@@ -1465,7 +1468,7 @@ function createBinaryPreview() {
     if (!aPattern || !bPattern) {
         previewPattern = null;
         previewBackupPattern = null;
-        const base = (operationsHistory.length > 0) ? operationsHistory[operationsHistory.length - 1].pattern : geomDSL.blank();
+        const base = (operationsHistory.length > 0) ? operationsHistory[operationsHistory.length - 1].pattern : brushSystem.blank();
         currentPattern = JSON.parse(JSON.stringify(base));
         renderPattern(currentPattern, 'workspace');
         setWorkspaceGlow(false);
@@ -1480,7 +1483,7 @@ function createBinaryPreview() {
         return;
     }
 
-    const base = (operationsHistory.length > 0) ? operationsHistory[operationsHistory.length - 1].pattern : geomDSL.blank();
+    const base = (operationsHistory.length > 0) ? operationsHistory[operationsHistory.length - 1].pattern : brushSystem.blank();
     previewBackupPattern = {
         pattern: JSON.parse(JSON.stringify(base)),
         operands: {
@@ -1517,7 +1520,7 @@ function createUnaryPreview() {
         previewBackupPattern = null;
         const base = (operationsHistory.length > 0)
             ? operationsHistory[operationsHistory.length - 1].pattern
-            : (currentPattern || geomDSL.blank());
+            : (currentPattern || brushSystem.blank());
         currentPattern = JSON.parse(JSON.stringify(base));
         renderPattern(currentPattern, 'workspace');
         setWorkspaceGlow(false);
@@ -1534,7 +1537,7 @@ function createUnaryPreview() {
 
     const base = (operationsHistory.length > 0)
         ? operationsHistory[operationsHistory.length - 1].pattern
-        : (currentPattern || geomDSL.blank());
+        : (currentPattern || brushSystem.blank());
 
     previewBackupPattern = {
         pattern: JSON.parse(JSON.stringify(base)),
@@ -1572,7 +1575,7 @@ function clearBinaryPreview() {
     setWorkspaceGlow(false);
     
     // restore workspace to last committed pattern if available
-    const base = (operationsHistory.length > 0) ? operationsHistory[operationsHistory.length - 1].pattern : geomDSL.blank();
+    const base = (operationsHistory.length > 0) ? operationsHistory[operationsHistory.length - 1].pattern : brushSystem.blank();
     currentPattern = JSON.parse(JSON.stringify(base));
     renderPattern(currentPattern, 'workspace');
     
@@ -1592,7 +1595,7 @@ function clearUnaryPreview() {
 
     const base = (operationsHistory.length > 0)
         ? operationsHistory[operationsHistory.length - 1].pattern
-        : geomDSL.blank();
+        : brushSystem.blank();
     currentPattern = JSON.parse(JSON.stringify(base));
     renderPattern(currentPattern, 'workspace');
 
@@ -1712,7 +1715,7 @@ function resetPendingOperation() {
         } else {
             const base = (operationsHistory.length > 0)
                 ? operationsHistory[operationsHistory.length - 1].pattern
-                : geomDSL.blank();
+                : brushSystem.blank();
             currentPattern = JSON.parse(JSON.stringify(base));
             renderPattern(currentPattern, 'workspace');
         }
@@ -1787,9 +1790,9 @@ function updateInlinePreviewPanel() {
                 label: 'SUBTRACT',
                 hint: 'SUBTRACT – choose a base pattern, then remove the second.'
             },
-            union: {
-                label: 'UNION',
-                hint: 'UNION – keep only the overlapping cells from both patterns.'
+            overlap: {
+                label: 'OVERLAP',
+                hint: 'OVERLAP – keep only the overlapping cells from both patterns.'
             }
         };
         const opConfig = opMessages[pendingBinaryOp] || opMessages.add;
@@ -1901,7 +1904,7 @@ function undoLast() {
             currentPattern = operationsHistory[operationsHistory.length - 1].pattern;
             renderPattern(currentPattern, 'workspace');
         } else {
-            currentPattern = geomDSL.blank();
+            currentPattern = brushSystemstem.blank();
             renderPattern(currentPattern, 'workspace');
         }
         updateOperationsLog();
@@ -1913,8 +1916,7 @@ function undoLast() {
 function seedAddPreviewWithBlankOperand() {
     pendingBinaryOp = null;
     pendingUnaryOp = null;
-    selectBinaryOp('add');
-    inlinePreview.aPattern = geomDSL.blank();
+    inlinePreview.aPattern = null;
     inlinePreview.aIndex = null;
     inlinePreview.bPattern = null;
     inlinePreview.bIndex = null;
@@ -1922,7 +1924,6 @@ function seedAddPreviewWithBlankOperand() {
     previewPattern = null;
     previewBackupPattern = null;
     setWorkspaceGlow(false);
-    createBinaryPreview();
     updateAllButtonStates();
     updateInlinePreviewPanel();
 }
@@ -1940,7 +1941,7 @@ function resetWorkspace() {
         });
     }
     
-    currentPattern = geomDSL.blank();
+    currentPattern = brushSystem.blank();
     renderPattern(currentPattern, 'workspace');
     operationsHistory = [];
     workflowSelections = [];
@@ -2042,7 +2043,7 @@ function initializeApp() {
     localStorage.removeItem('patternHelpers');
     saveFavoritesToStorage();
     
-    initializePrimitiveIcons();
+    initializeBrushInterface();
     initializePreviewControllers();
     bindButtonInteractions();
     registerKeyboardShortcuts();
@@ -2060,12 +2061,8 @@ function initializePreviewControllers() {
 }
 
 function bindButtonInteractions() {
-    document.querySelectorAll('.primitive-btn[data-op]').forEach(btn => {
-        btn.addEventListener('dblclick', () => {
-            const op = btn.getAttribute('data-op');
-            applyPrimitive(op);
-        });
-    });
+    // Brush interactions are handled in initializeBrushInterface()
+    // No primitive buttons anymore
 
     document.querySelectorAll('.binary-btn[data-op]').forEach(btn => {
         btn.addEventListener('dblclick', () => {
@@ -2107,7 +2104,7 @@ Object.assign(globalScope, {
     startExperiment,
     selectBinaryOp,
     applyTransform,
-    applyPrimitive,
+    applyCustomPattern,
     confirmPendingOperation,
     resetPendingOperation,
     submitAnswer,
